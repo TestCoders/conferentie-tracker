@@ -1,10 +1,19 @@
 'use client';
 // Eigenaar: C. Publiek overzicht: zoeken, filteren, sorteren, lijst/kaarten/agenda en 2 vergelijken.
-import { useEffect, useMemo, useState } from 'react';
-import { CATEGORIES, type Category, type Conference, type ListResponse } from '@/lib/types';
+import { useCallback, useEffect, useMemo, useState } from 'react';
+import {
+  CATEGORIES,
+  type Category,
+  type CommunityStats,
+  type CommunitySummaryResponse,
+  type Conference,
+  type ListResponse,
+} from '@/lib/types';
 import { AgendaView } from './AgendaView';
+import { CommunityBadge } from './CommunityBadge';
 import { CompareTable } from './CompareTable';
 import { ConferenceCard } from './ConferenceCard';
+import { ConferenceCommunity } from './ConferenceCommunity';
 import { ConferenceRow } from './ConferenceRow';
 import { CATEGORY_LABELS } from './format';
 
@@ -31,6 +40,45 @@ export function Explorer() {
   const [sortOrder, setSortOrder] = useState<SortOrder>('asc');
   const [view, setView] = useState<ViewMode>('list');
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
+  const [expandedId, setExpandedId] = useState<string | null>(null);
+  // undefined = (nog) niet beschikbaar; de lijst werkt dan gewoon zonder tellingen.
+  const [stats, setStats] = useState<Record<string, CommunityStats> | undefined>(undefined);
+  const [statsVersion, setStatsVersion] = useState(0);
+
+  useEffect(() => {
+    const controller = new AbortController();
+    fetch('/api/attendances/summary', { signal: controller.signal })
+      .then(async (res) => {
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        setStats(((await res.json()) as CommunitySummaryResponse).items);
+      })
+      .catch(() => {
+        // Community-tellingen zijn optioneel; de lijst blokkeert er niet op.
+      });
+    return () => controller.abort();
+  }, [statsVersion]);
+
+  const refreshStats = useCallback(() => setStatsVersion((n) => n + 1), []);
+
+  function communityFor(c: Conference, stacked: boolean) {
+    const panelId = `community-${c.id}`;
+    const expanded = expandedId === c.id;
+    return {
+      badge: (
+        <CommunityBadge
+          stats={stats?.[c.id]}
+          expanded={expanded}
+          controls={panelId}
+          onToggle={() => setExpandedId(expanded ? null : c.id)}
+        />
+      ),
+      panel: expanded ? (
+        <div id={panelId}>
+          <ConferenceCommunity conference={c} onChanged={refreshStats} stacked={stacked} />
+        </div>
+      ) : null,
+    };
+  }
 
   useEffect(() => {
     const controller = new AbortController();
@@ -96,7 +144,11 @@ export function Explorer() {
   return (
     <div>
       {selected.length === MAX_COMPARE ? (
-        <CompareTable conferences={[selected[0], selected[1]]} onClear={() => setSelectedIds([])} />
+        <CompareTable
+          conferences={[selected[0], selected[1]]}
+          onClear={() => setSelectedIds([])}
+          stats={stats}
+        />
       ) : null}
 
       <div className="border-hairline bg-void/90 sticky top-[61px] z-[5] -mx-4 mb-4 border-b px-4 py-3 backdrop-blur">
@@ -176,6 +228,7 @@ export function Explorer() {
         <ul className="divide-hairline border-hairline bg-surface divide-y overflow-hidden rounded-md border">
           {visible.map((c) => {
             const isSelected = selectedIds.includes(c.id);
+            const community = communityFor(c, false);
             return (
               <li key={c.id}>
                 <ConferenceRow
@@ -183,7 +236,9 @@ export function Explorer() {
                   selected={isSelected}
                   selectDisabled={!isSelected && selectedIds.length >= MAX_COMPARE}
                   onToggleSelect={toggleSelect}
+                  community={community.badge}
                 />
+                {community.panel}
               </li>
             );
           })}
@@ -192,6 +247,7 @@ export function Explorer() {
         <ul className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
           {visible.map((c) => {
             const isSelected = selectedIds.includes(c.id);
+            const community = communityFor(c, true);
             return (
               <li key={c.id}>
                 <ConferenceCard
@@ -199,7 +255,10 @@ export function Explorer() {
                   selected={isSelected}
                   selectDisabled={!isSelected && selectedIds.length >= MAX_COMPARE}
                   onToggleSelect={toggleSelect}
-                />
+                  community={community.badge}
+                >
+                  {community.panel}
+                </ConferenceCard>
               </li>
             );
           })}

@@ -75,6 +75,45 @@ export type CreateReviewRequest = {
   comment?: string | null;
 };
 
+export const ATTENDANCE_STATUSES = ['interested', 'attended'] as const;
+export type AttendanceStatus = (typeof ATTENDANCE_STATUSES)[number];
+
+/** Iemand die interesse heeft of de conferentie heeft bijgewoond (user-generated, geen login). */
+export type Attendance = {
+  id: string;
+  conference_id: string;
+  person_name: string;
+  status: AttendanceStatus;
+  created_at: string;
+  /** Laatste rating van een review onder dezelfde naam (hoofdletter-ongevoelig), anders null. */
+  rating: number | null;
+};
+
+/** GET /api/attendances?conferenceId=<uuid> */
+export type AttendancesResponse = {
+  items: Attendance[];
+  interested: number;
+  attended: number;
+};
+
+/** POST /api/attendances — rating/comment alleen bij status 'attended'; maakt dan ook een review. */
+export type CreateAttendanceRequest = {
+  conferenceId: string;
+  personName: string;
+  status: AttendanceStatus;
+  rating?: number | null;
+  comment?: string | null;
+};
+
+/** GET /api/attendances/summary — tellingen per conference_id voor lijst en vergelijking. */
+export type CommunityStats = {
+  interested: number;
+  attended: number;
+  reviews: number;
+  averageRating: number | null;
+};
+export type CommunitySummaryResponse = { items: Record<string, CommunityStats> };
+
 /** Kolommen die we teruggeven als Conference (geen created_at/updated_at). */
 export const CONFERENCE_COLUMNS =
   'id,name,official_url,canonical_url,source_name,source_url,start_date,end_date,city,country,category,cfp_url,cfp_deadline,price_text,status,last_checked_at';

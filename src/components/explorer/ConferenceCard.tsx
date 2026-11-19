@@ -1,4 +1,5 @@
 // Eigenaar: C.
+import type { ReactNode } from 'react';
 import type { Conference } from '@/lib/types';
 import { CATEGORY_LABELS, formatDate, formatDateRange, formatLocation } from './format';
 import { CATEGORY_STYLES } from './category-styles';
@@ -9,11 +10,22 @@ type Props = {
   selected: boolean;
   selectDisabled: boolean;
   onToggleSelect: (id: string) => void;
+  /** Badge met deelnemers/rating (klapt het community-paneel open). */
+  community?: ReactNode;
+  /** Community-paneel, onderaan in de kaart. */
+  children?: ReactNode;
 };
 
 const LABEL = 'font-mono text-xs leading-5 text-ink-muted';
 
-export function ConferenceCard({ conference: c, selected, selectDisabled, onToggleSelect }: Props) {
+export function ConferenceCard({
+  conference: c,
+  selected,
+  selectDisabled,
+  onToggleSelect,
+  community,
+  children,
+}: Props) {
   const checkboxId = `compare-${c.id}`;
 
   return (
@@ -74,23 +86,27 @@ export function ConferenceCard({ conference: c, selected, selectDisabled, onTogg
             bron: {c.source_name}
           </a>
         </div>
-        <label
-          htmlFor={checkboxId}
-          className={`flex items-center gap-2 font-mono text-xs ${
-            selectDisabled ? 'opacity-40' : 'cursor-pointer'
-          }`}
-        >
-          <input
-            id={checkboxId}
-            type="checkbox"
-            className="accent-signal size-4"
-            checked={selected}
-            disabled={selectDisabled}
-            onChange={() => onToggleSelect(c.id)}
-          />
-          vergelijk
-        </label>
+        <div className="flex items-center gap-3">
+          {community}
+          <label
+            htmlFor={checkboxId}
+            className={`flex items-center gap-2 font-mono text-xs ${
+              selectDisabled ? 'opacity-40' : 'cursor-pointer'
+            }`}
+          >
+            <input
+              id={checkboxId}
+              type="checkbox"
+              className="accent-signal size-4"
+              checked={selected}
+              disabled={selectDisabled}
+              onChange={() => onToggleSelect(c.id)}
+            />
+            vergelijk
+          </label>
+        </div>
       </div>
+      {children ? <div className="-mx-4 mt-4 -mb-4">{children}</div> : null}
     </article>
   );
 }
