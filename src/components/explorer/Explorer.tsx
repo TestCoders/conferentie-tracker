@@ -17,7 +17,9 @@ import { CompareTable } from './CompareTable';
 import { ConferenceCard } from './ConferenceCard';
 import { ConferenceCommunity } from './ConferenceCommunity';
 import { ConferenceRow } from './ConferenceRow';
-import { addMonths } from './calendar';
+import { FavoriteButton } from './FavoriteButton';
+import { addMonths, downloadIcs } from './calendar';
+import { useFavorites } from './favorites';
 import { CATEGORY_LABELS, isPast, todayIso } from './format';
 
 const MAX_COMPARE = 2;
@@ -67,6 +69,8 @@ export function Explorer() {
   const [assumptions, setAssumptions] = useState<CostAssumption[] | undefined>(undefined);
   const [budget, setBudget] = useState('');
   const [hideUnknownCost, setHideUnknownCost] = useState(false);
+  const favorites = useFavorites();
+  const [onlyFavorites, setOnlyFavorites] = useState(false);
 
   useEffect(() => {
     const controller = new AbortController();
@@ -102,6 +106,16 @@ export function Explorer() {
   }, [statsVersion]);
 
   const refreshStats = useCallback(() => setStatsVersion((n) => n + 1), []);
+
+  function favoriteFor(c: Conference) {
+    return (
+      <FavoriteButton
+        name={c.name}
+        active={favorites.ids.has(c.id)}
+        onToggle={() => favorites.toggle(c.id)}
+      />
+    );
+  }
 
   function communityFor(c: Conference, stacked: boolean) {
     const panelId = `community-${c.id}`;
@@ -194,6 +208,7 @@ export function Explorer() {
     const totalOf = (c: Conference) => costs?.[c.id]?.total ?? null;
 
     const filtered = inPeriod.filter((c) => {
+      if (onlyFavorites && !favorites.ids.has(c.id)) return false;
       if (category !== 'all' && c.category !== category) return false;
       if (q !== '' && !c.name.toLowerCase().includes(q)) return false;
       if (!budgetActive) return true;
@@ -214,7 +229,17 @@ export function Explorer() {
       // 'YYYY-MM-DD' sorteert lexicografisch correct.
       return a.start_date.localeCompare(b.start_date) * direction;
     });
-  }, [inPeriod, query, category, sortOrder, budget, hideUnknownCost, costs]);
+  }, [
+    inPeriod,
+    query,
+    category,
+    sortOrder,
+    budget,
+    hideUnknownCost,
+    costs,
+    onlyFavorites,
+    favorites.ids,
+  ]);
 
   const unknownCostVisible =
     costs !== undefined && budget !== '' ? visible.filter((c) => !costs[c.id]).length : 0;
@@ -251,6 +276,7 @@ export function Explorer() {
     (acc, cat) => ({ ...acc, [cat]: inPeriod.filter((c) => c.category === cat).length }),
     { development: 0, testing: 0, 'test-automation': 0 },
   );
+  const favoriteCount = inPeriod.filter((c) => favorites.ids.has(c.id)).length;
 
   return (
     <div>
@@ -353,6 +379,22 @@ export function Explorer() {
             </div>
           ) : null}
           <div className={FIELD_LABEL}>
+            <span id="favorites-label">--favorieten</span>
+            <button
+              type="button"
+              aria-labelledby="favorites-label"
+              aria-pressed={onlyFavorites}
+              onClick={() => setOnlyFavorites((on) => !on)}
+              className={`focus:ring-signal rounded-md border px-3 py-2 font-sans text-sm transition-colors focus:ring-2 focus:outline-none ${
+                onlyFavorites
+                  ? 'border-assess bg-assess/15 text-ink font-semibold'
+                  : 'border-hairline bg-surface text-ink-soft hover:text-ink'
+              }`}
+            >
+              {onlyFavorites ? '★' : '☆'} Alleen favorieten ({favoriteCount})
+            </button>
+          </div>
+          <div className={FIELD_LABEL}>
             <span id="view-label">--weergave</span>
             <div
               role="group"
@@ -379,7 +421,20 @@ export function Explorer() {
           <span className="text-adopt">✓</span> {visible.length} van {inPeriod.length} conferenties
           · {PERIOD_LABELS[period].toLowerCase()}
           {year !== 'all' ? ` · ${year}` : ''}
+          {onlyFavorites ? ' · alleen favorieten' : ''}
           {selected.length === 1 ? ' · selecteer nog 1 om te vergelijken' : ''}
+          {onlyFavorites && visible.length > 0 ? (
+            <>
+              {' · '}
+              <button
+                type="button"
+                onClick={() => downloadIcs(visible, 'favoriete-conferenties.ics')}
+                className="text-signal hover:underline"
+              >
+                ⤓ zet deze {visible.length} in mijn agenda (.ics)
+              </button>
+            </>
+          ) : null}
         </p>
         {costs && budget !== '' ? (
           <div
@@ -415,7 +470,9 @@ export function Explorer() {
         <p>
           {inPeriod.length === 0
             ? 'Geen conferenties in deze periode. Kies een andere periode of een ander jaar.'
-            : 'Geen conferenties gevonden voor deze zoekopdracht.'}
+            : onlyFavorites && favoriteCount === 0
+              ? 'Nog geen favorieten in deze periode. Klik op ☆ bij een conferentie om hem op je shortlist te zetten.'
+              : 'Geen conferenties gevonden voor deze zoekopdracht.'}
         </p>
       ) : view === 'agenda' ? (
         <AgendaView conferences={visible} range={agendaRange} />
@@ -433,6 +490,7 @@ export function Explorer() {
                   onToggleSelect={toggleSelect}
                   community={community.badge}
                   cost={costs ? (costs[c.id] ?? null) : undefined}
+                  favorite={favoriteFor(c)}
                 />
                 {community.panel}
               </li>
@@ -453,6 +511,7 @@ export function Explorer() {
                   onToggleSelect={toggleSelect}
                   community={community.badge}
                   cost={costs ? (costs[c.id] ?? null) : undefined}
+                  favorite={favoriteFor(c)}
                 >
                   {community.panel}
                 </ConferenceCard>

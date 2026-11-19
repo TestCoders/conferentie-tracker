@@ -4,7 +4,8 @@ import { useMemo, useState, type ChangeEvent } from 'react';
 import type { Conference } from '@/lib/types';
 import {
   addMonths,
-  buildIcs,
+  downloadIcs,
+  icsFilename,
   conflictsFor,
   lastDay,
   monthGrid,
@@ -36,16 +37,6 @@ function dayLabel(day: string): string {
     month: 'long',
     timeZone: 'UTC',
   });
-}
-
-function downloadIcs(c: Conference) {
-  const blob = new Blob([buildIcs(c, new Date())], { type: 'text/calendar;charset=utf-8' });
-  const url = URL.createObjectURL(blob);
-  const link = document.createElement('a');
-  link.href = url;
-  link.download = `${c.name.replace(/[^\p{L}\p{N}]+/gu, '-').replace(/^-|-$/g, '') || 'conferentie'}.ics`;
-  link.click();
-  setTimeout(() => URL.revokeObjectURL(url), 1000);
 }
 
 const covers = (start: string, end: string, day: string) => start <= day && day <= end;
@@ -401,7 +392,7 @@ export function AgendaView({
                     </div>
                     <button
                       type="button"
-                      onClick={() => downloadIcs(c)}
+                      onClick={() => downloadIcs(c, icsFilename(c.name))}
                       className="border-hairline bg-glass hover:text-signal shrink-0 rounded-md border px-3 py-1.5 text-sm"
                     >
                       ＋ Zet in mijn agenda (.ics)
