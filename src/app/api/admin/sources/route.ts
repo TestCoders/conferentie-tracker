@@ -1,6 +1,7 @@
 // Eigenaar: D. GET/POST /api/admin/sources — door beheerders toegevoegde discoverybronnen.
 import {
   createCustomSource,
+  detectSource,
   DuplicateSourceError,
   listCustomSources,
   parseCreateCustomSource,
@@ -18,6 +19,8 @@ export async function GET(request: Request) {
     return jsonError(error instanceof Error ? error.message : 'Bronnen ophalen mislukt', 500);
   }
 }
+
+export const maxDuration = 30;
 
 export async function POST(request: Request) {
   const denied = requireAdmin(request);
@@ -37,8 +40,21 @@ export async function POST(request: Request) {
   } catch (error) {
     return jsonError(error instanceof Error ? error.message : 'Ongeldige bron', 400);
   }
+  // Het formaat bepaalt de server zelf, opnieuw bij het opslaan (geen formaat van de client).
+  let detected;
   try {
-    const created = await createCustomSource(input);
+    detected = await detectSource(input.url);
+  } catch (error) {
+    return jsonError(
+      `Bron niet bruikbaar: ${error instanceof Error ? error.message : 'analyse mislukt'}`,
+      400,
+    );
+  }
+  try {
+    const created = await createCustomSource(input, {
+      format: detected.format,
+      config: detected.config,
+    });
     return Response.json(created satisfies CustomDiscoverySource, { status: 201 });
   } catch (error) {
     if (error instanceof DuplicateSourceError) return jsonError(error.message, 409);

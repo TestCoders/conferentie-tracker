@@ -8,7 +8,12 @@ import { loadCostCoverage } from '@/lib/discovery/cost-coverage';
 import { fetchCustomSource, getCustomSource } from '@/lib/discovery/custom-sources';
 import type { FetchResult } from '@/lib/discovery/fetch-source';
 import { getSupabaseAdmin } from '@/lib/supabase-admin';
-import type { ConferenceInput, DiscoveryRunResponse, DiscoverySource } from '@/lib/types';
+import type {
+  ConferenceInput,
+  ConferenceStatus,
+  DiscoveryRunResponse,
+  DiscoverySource,
+} from '@/lib/types';
 
 export class SourceNotFoundError extends Error {}
 
@@ -43,11 +48,16 @@ export async function runCustomDiscovery(sourceId: string): Promise<DiscoveryRun
   const source = await getCustomSource(sourceId);
   if (!source) throw new SourceNotFoundError('Bron niet gevonden');
   let fetched: ConferenceInput[] = [];
-  const result = await runIngestion(source.name, async () => {
-    const response = await fetchCustomSource(source);
-    fetched = response.items;
-    return response;
-  });
+  const result = await runIngestion(
+    source.name,
+    async () => {
+      const response = await fetchCustomSource(source);
+      fetched = response.items;
+      return response;
+    },
+    // AI-extractie: nieuwe vondsten eerst laten controleren door een beheerder.
+    { newStatus: source.format === 'ai' ? 'pending' : undefined },
+  );
   const coverage = await loadCostCoverage(deduplicateConferences(fetched));
   if (coverage) result.costCoverage = coverage;
   return result;
@@ -57,6 +67,7 @@ export async function runCustomDiscovery(sourceId: string): Promise<DiscoveryRun
 async function runIngestion(
   source: string,
   adapter: () => Promise<FetchResult>,
+  { newStatus }: { newStatus?: ConferenceStatus } = {},
 ): Promise<DiscoveryRunResponse> {
   const db = getSupabaseAdmin();
   const { data: run, error: startError } = await db
@@ -87,10 +98,12 @@ async function runIngestion(
         void status;
         return { ...fields, last_checked_at: checkedAt, updated_at: checkedAt };
       });
+      // Alleen nieuwe rijen krijgen eventueel een eigen status; bestaande houden hun moderatie.
+      const insertRows = newStatus ? rows.map((row) => ({ ...row, status: newStatus })) : rows;
       // DO NOTHING + RETURNING telt echt ingevoegde rijen, ook bij gelijktijdige imports.
       const { data: inserted, error: insertError } = await db
         .from('conferences')
-        .upsert(rows, { onConflict: 'canonical_url,start_date', ignoreDuplicates: true })
+        .upsert(insertRows, { onConflict: 'canonical_url,start_date', ignoreDuplicates: true })
         .select('canonical_url,start_date');
       if (insertError || !inserted) throw new Error('Conferenties invoegen mislukt');
       result.inserted = inserted.length;

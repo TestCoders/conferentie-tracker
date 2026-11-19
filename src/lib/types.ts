@@ -93,8 +93,50 @@ export type DiscoverySource = (typeof DISCOVERY_SOURCES)[number];
  * Feedformaat van een handmatig toegevoegde bron. Bepaalt welke bestaande parser
  * (confs.tech of TestingConferences) de feed verwerkt.
  */
-export const CUSTOM_SOURCE_FORMATS = ['confs-tech-json', 'testing-conferences-yaml'] as const;
+/**
+ * Formaat van een handmatig toegevoegde bron; wordt per URL automatisch herkend.
+ * - confs-tech-json / testing-conferences-yaml: exact de parsers van de vaste bronnen.
+ * - json / yaml: lijst records; velden via een automatisch gevonden `SourceParseConfig`.
+ * - ical: iCalendar-feed (VEVENT).
+ * - jsonld: HTML-pagina met schema.org Event-gegevens (JSON-LD).
+ * - ai: gewone HTML-pagina, uitgelezen door de AI (records krijgen status 'pending').
+ */
+export const CUSTOM_SOURCE_FORMATS = [
+  'confs-tech-json',
+  'testing-conferences-yaml',
+  'json',
+  'yaml',
+  'ical',
+  'jsonld',
+  'ai',
+] as const;
 export type CustomSourceFormat = (typeof CUSTOM_SOURCE_FORMATS)[number];
+
+/** Velden van een conferentie die uit een json/yaml-record gehaald kunnen worden. */
+export const MAPPED_FIELDS = [
+  'name',
+  'url',
+  'startDate',
+  'endDate',
+  /** Vrije datumtekst, bijv. "March 3-4, 2027". */
+  'dates',
+  'city',
+  'country',
+  /** "Stad, Land", "Online" of een object met city/country. */
+  'location',
+  'online',
+  'cfpUrl',
+  'cfpDeadline',
+  'price',
+] as const;
+export type MappedField = (typeof MAPPED_FIELDS)[number];
+
+/** Hoe een json/yaml-bron gelezen wordt: waar de lijst staat en welke sleutel welk veld is. */
+export type SourceParseConfig = {
+  /** Pad naar de lijst records; [] = de lijst is de hele feed. */
+  recordsPath: string[];
+  fields: Partial<Record<MappedField, string>>;
+};
 
 /** Door een beheerder toegevoegde bron (tabel discovery_sources). */
 export type CustomDiscoverySource = {
@@ -103,14 +145,38 @@ export type CustomDiscoverySource = {
   name: string;
   url: string;
   format: CustomSourceFormat;
+  /** Alleen bij json/yaml. */
+  config: SourceParseConfig | null;
+  /** Categorie als de naam geen bewijs voor testing/test-automation bevat. */
+  default_category: Category;
   created_at: string;
 };
 
-/** POST /api/admin/sources */
+/** POST /api/admin/sources — de server analyseert de URL opnieuw; het formaat kies je niet zelf. */
 export type CreateCustomSourceRequest = {
   name: string;
   url: string;
+  defaultCategory?: Category;
+};
+
+/** POST /api/admin/sources/analyze */
+export type AnalyzeSourceRequest = { url: string };
+
+/** Uitkomst van de analyse van een URL: wat er gevonden is, nog zonder iets op te slaan. */
+export type SourceAnalysis = {
+  url: string;
   format: CustomSourceFormat;
+  config: SourceParseConfig | null;
+  /** Voorgestelde standaardcategorie op basis van de gevonden namen. */
+  defaultCategory: Category;
+  /** Aantal geldige conferenties in de bron. */
+  found: number;
+  /** De eerste paar geldige records, zoals ze opgeslagen zouden worden. */
+  sample: ConferenceInput[];
+  /** Eerste fouten (ongeldige records e.d.). */
+  errors: string[];
+  /** Nieuwe conferenties uit deze bron krijgen status 'pending' (AI-extractie). */
+  pending: boolean;
 };
 
 /** POST /api/discovery/run — óf een vaste bron, óf het id van een eigen bron. */

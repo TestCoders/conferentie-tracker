@@ -19,6 +19,7 @@ import {
   type Conference,
   type ConferencePatch,
   type ConferenceStatus,
+  type AnalyzeSourceRequest,
   type CreateCustomSourceRequest,
   type CustomDiscoverySource,
   type DiscoveryRunRequest,
@@ -26,6 +27,7 @@ import {
   type DiscoverySource,
   type ErrorResponse,
   type ListResponse,
+  type SourceAnalysis,
 } from '@/lib/types';
 
 type StatusFilter = ConferenceStatus | 'all';
@@ -93,6 +95,20 @@ export function AdminPanel() {
       setSourcesError(err instanceof Error ? err.message : 'Netwerkfout');
     } finally {
       setSourcesLoading(false);
+    }
+  }
+
+  async function analyzeSource(url: string): Promise<SourceAnalysis | string> {
+    try {
+      const res = await fetch('/api/admin/sources/analyze', {
+        method: 'POST',
+        headers: authHeaders,
+        body: JSON.stringify({ url } satisfies AnalyzeSourceRequest),
+      });
+      if (!res.ok) return await readError(res);
+      return (await res.json()) as SourceAnalysis;
+    } catch (err) {
+      return err instanceof Error ? err.message : 'Netwerkfout';
     }
   }
 
@@ -318,6 +334,7 @@ export function AdminPanel() {
         error={sourcesError}
         disabled={!token}
         onLoad={loadSources}
+        onAnalyze={analyzeSource}
         onCreate={createSource}
         onDelete={deleteSource}
       />

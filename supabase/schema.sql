@@ -85,7 +85,13 @@ create table if not exists public.discovery_sources (
   name text not null check (char_length(btrim(name)) between 1 and 60),
   name_key text generated always as (lower(btrim(name))) stored,
   url text not null check (url like 'https://%' and char_length(url) <= 2000),
-  format text not null check (format in ('confs-tech-json', 'testing-conferences-yaml')),
+  format text not null check (
+    format in ('confs-tech-json', 'testing-conferences-yaml', 'json', 'yaml', 'ical', 'jsonld', 'ai')
+  ),
+  -- Zie migrations/20261119_discovery_sources_autodetect.sql.
+  config jsonb,
+  default_category text not null default 'development'
+    check (default_category in ('development', 'testing', 'test-automation')),
   created_at timestamptz not null default now(),
   unique (name_key),
   unique (url)
