@@ -32,15 +32,28 @@ export type Conference = {
   ticket_price_eur: number | null;
   /** Bron van de ticketprijs (https). */
   ticket_price_url: string | null;
+  /** Afbeelding (og:image) van de officiële website, alleen https; anders null. */
+  image_url: string | null;
+  /** Logo/icoon (apple-touch-icon, icon) van de officiële website, alleen https; anders null. */
+  icon_url: string | null;
   status: ConferenceStatus;
   last_checked_at: string;
 };
 
-/** Rij zoals de discovery-engine hem aanlevert voor een upsert (zonder DB-velden). */
-/** Zonder ticketvelden: die beheert een beheerder en mag een herimport niet overschrijven. */
+/**
+ * Rij zoals de discovery-engine hem aanlevert voor een upsert (zonder DB-velden).
+ * Zonder ticketvelden (beheerder) en afbeeldingen (aparte stap): een herimport mag die niet
+ * overschrijven.
+ */
 export type ConferenceInput = Omit<
   Conference,
-  'id' | 'status' | 'last_checked_at' | 'ticket_price_eur' | 'ticket_price_url'
+  | 'id'
+  | 'status'
+  | 'last_checked_at'
+  | 'ticket_price_eur'
+  | 'ticket_price_url'
+  | 'image_url'
+  | 'icon_url'
 > & {
   status?: ConferenceStatus;
 };
@@ -59,6 +72,8 @@ export type DiscoveryRunResponse = {
   inserted: number;
   updated: number;
   errors: string[];
+  /** Websites bekeken op logo/afbeelding in deze run; ontbreekt als die stap niet draaide. */
+  images?: { checked: number; found: number };
 };
 
 /** Velden die via PATCH /api/admin/conferences/:id aangepast mogen worden. */
@@ -220,4 +235,4 @@ export type ExperienceConference = Pick<
 
 /** Kolommen die we teruggeven als Conference (geen created_at/updated_at). */
 export const CONFERENCE_COLUMNS =
-  'id,name,official_url,canonical_url,source_name,source_url,start_date,end_date,city,country,category,cfp_url,cfp_deadline,price_text,online_only,ticket_price_eur,ticket_price_url,status,last_checked_at';
+  'id,name,official_url,canonical_url,source_name,source_url,start_date,end_date,city,country,category,cfp_url,cfp_deadline,price_text,online_only,ticket_price_eur,ticket_price_url,image_url,icon_url,status,last_checked_at';

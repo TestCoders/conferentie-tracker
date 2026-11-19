@@ -5,6 +5,7 @@ import type { Conference } from '@/lib/types';
 import { CATEGORY_LABELS, formatDate, formatDateRange, formatLocation } from './format';
 import { CATEGORY_STYLES } from './category-styles';
 import { CostBreakdown, CostValue } from './CostValue';
+import { ConferenceBanner, ConferenceLogo } from './ConferenceImages';
 import { Value } from './Value';
 
 type Props = {
@@ -39,8 +40,12 @@ export function ConferenceCard({
         selected ? 'border-signal ring-signal/30 ring-2' : 'border-hairline'
       }`}
     >
+      <ConferenceBanner conference={c} className="-mx-4 -mt-4 mb-4 rounded-t-md border-b" />
       <div className="flex items-start justify-between gap-3">
-        <h2 className="font-display text-lg leading-snug font-semibold">{c.name}</h2>
+        <div className="flex min-w-0 items-center gap-3">
+          <ConferenceLogo conference={c} />
+          <h2 className="font-display text-lg leading-snug font-semibold">{c.name}</h2>
+        </div>
         <span
           className={`shrink-0 rounded px-2 py-0.5 font-mono text-[11px] font-semibold ${CATEGORY_STYLES[c.category]}`}
         >

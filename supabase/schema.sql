@@ -23,6 +23,10 @@ create table if not exists public.conferences (
   ticket_price_eur integer check (ticket_price_eur between 0 and 20000),
   ticket_price_url text
     check (ticket_price_url like 'https://%' and char_length(ticket_price_url) <= 2000),
+  -- Van de officiële website (og:image / icon); zie migrations/20261119_conference_images.sql.
+  image_url text,
+  icon_url text,
+  images_checked_at timestamptz,
   status text not null default 'approved'
     check (status in ('pending', 'approved', 'rejected')),
   last_checked_at timestamptz not null default now(),
