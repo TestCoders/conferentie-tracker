@@ -20,6 +20,8 @@ type Props = {
   children?: ReactNode;
   /** Kostenschatting; undefined = aannames niet beschikbaar (dan niet tonen). */
   cost?: CostEstimate | null;
+  /** Favorietknop (ster). */
+  favorite?: ReactNode;
 };
 
 const LABEL = 'font-mono text-xs leading-5 text-ink-muted';
@@ -32,6 +34,7 @@ export function ConferenceCard({
   community,
   children,
   cost,
+  favorite,
 }: Props) {
   const checkboxId = `compare-${c.id}`;
 
@@ -47,11 +50,14 @@ export function ConferenceCard({
           <ConferenceLogo conference={c} />
           <h2 className="font-display text-lg leading-snug font-semibold">{c.name}</h2>
         </div>
-        <span
-          className={`shrink-0 rounded px-2 py-0.5 font-mono text-[11px] font-semibold ${CATEGORY_STYLES[c.category]}`}
-        >
-          {CATEGORY_LABELS[c.category]}
-        </span>
+        <div className="flex shrink-0 items-center gap-1">
+          <span
+            className={`rounded px-2 py-0.5 font-mono text-[11px] font-semibold ${CATEGORY_STYLES[c.category]}`}
+          >
+            {CATEGORY_LABELS[c.category]}
+          </span>
+          {favorite}
+        </div>
       </div>
 
       <dl className="mt-3 mb-4 grid grid-cols-[auto_1fr] gap-x-3 gap-y-1 text-sm">

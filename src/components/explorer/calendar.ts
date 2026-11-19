@@ -112,30 +112,53 @@ function fold(line: string): string {
   return parts.join('\r\n ');
 }
 
-/** .ics met één hele-dag-afspraak voor de conferentie. */
-export function buildIcs(c: Conference, now: Date): string {
+/** .ics met een hele-dag-afspraak per conferentie (één of meer). */
+export function buildIcs(conferences: Conference | Conference[], now: Date): string {
   const compact = (iso: string) => iso.replaceAll('-', '');
   const stamp = now
     .toISOString()
     .replace(/[-:]/g, '')
     .replace(/\.\d{3}/, '');
-  const location = [c.city, c.country].filter(Boolean).join(', ');
+  const events = (Array.isArray(conferences) ? conferences : [conferences]).flatMap((c) => {
+    const location = [c.city, c.country].filter(Boolean).join(', ');
+    return [
+      'BEGIN:VEVENT',
+      `UID:${c.id}@conference-tracker`,
+      `DTSTAMP:${stamp}`,
+      `DTSTART;VALUE=DATE:${compact(c.start_date)}`,
+      `DTEND;VALUE=DATE:${compact(addDays(lastDay(c), 1))}`,
+      `SUMMARY:${escapeText(c.name)}`,
+      ...(location ? [`LOCATION:${escapeText(location)}`] : []),
+      `URL:${c.official_url}`,
+      `DESCRIPTION:${escapeText(`Website: ${c.official_url}\nBron: ${c.source_name}`)}`,
+      'END:VEVENT',
+    ];
+  });
   const lines = [
     'BEGIN:VCALENDAR',
     'VERSION:2.0',
     'PRODID:-//TestCoders//Conference Tracker//NL',
     'CALSCALE:GREGORIAN',
-    'BEGIN:VEVENT',
-    `UID:${c.id}@conference-tracker`,
-    `DTSTAMP:${stamp}`,
-    `DTSTART;VALUE=DATE:${compact(c.start_date)}`,
-    `DTEND;VALUE=DATE:${compact(addDays(lastDay(c), 1))}`,
-    `SUMMARY:${escapeText(c.name)}`,
-    ...(location ? [`LOCATION:${escapeText(location)}`] : []),
-    `URL:${c.official_url}`,
-    `DESCRIPTION:${escapeText(`Website: ${c.official_url}\nBron: ${c.source_name}`)}`,
-    'END:VEVENT',
+    ...events,
     'END:VCALENDAR',
   ];
   return lines.map(fold).join('\r\n') + '\r\n';
+}
+
+/** Bestandsnaam zonder rare tekens, bijv. 'JSConf-EU.ics'. */
+export function icsFilename(name: string): string {
+  return `${name.replace(/[^\p{L}\p{N}]+/gu, '-').replace(/^-|-$/g, '') || 'conferentie'}.ics`;
+}
+
+/** Download een .ics in de browser (alleen client-side aanroepen). */
+export function downloadIcs(conferences: Conference | Conference[], filename: string) {
+  const blob = new Blob([buildIcs(conferences, new Date())], {
+    type: 'text/calendar;charset=utf-8',
+  });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement('a');
+  link.href = url;
+  link.download = filename;
+  link.click();
+  setTimeout(() => URL.revokeObjectURL(url), 1000);
 }
