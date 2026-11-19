@@ -22,6 +22,7 @@ import { ConferenceRow } from './ConferenceRow';
 import { FavoriteButton } from './FavoriteButton';
 import { addMonths, downloadIcs } from './calendar';
 import { useFavorites } from './favorites';
+import { WorldMap } from './map/WorldMap';
 import { CATEGORY_LABELS, isPast, todayIso } from './format';
 
 const MAX_COMPARE = 2;
@@ -41,12 +42,13 @@ function cutoff12(today: string): string {
   d.setUTCFullYear(d.getUTCFullYear() - 1);
   return d.toISOString().slice(0, 10);
 }
-type ViewMode = 'list' | 'cards' | 'agenda';
+type ViewMode = 'list' | 'cards' | 'agenda' | 'map';
 
 const VIEW_LABELS: Record<ViewMode, string> = {
   list: '☰ Lijst',
   cards: '▦ Kaarten',
   agenda: '📅 Agenda',
+  map: '🌍 Wereldkaart',
 };
 
 const FIELD =
@@ -491,6 +493,8 @@ export function Explorer() {
         </p>
       ) : view === 'agenda' ? (
         <AgendaView conferences={visible} range={agendaRange} />
+      ) : view === 'map' ? (
+        <WorldMap conferences={visible} favorites={favorites.ids} />
       ) : view === 'list' ? (
         <ul className="divide-hairline border-hairline bg-surface divide-y overflow-hidden rounded-md border">
           {visible.map((c) => {
