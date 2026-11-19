@@ -2,10 +2,15 @@
 import { parseDocument } from 'yaml';
 import { normalizeUrl } from '@/lib/discovery/normalize-url';
 import { readDate, readText, readUrl } from '@/lib/discovery/validation';
+import { mentionsYearSince, pastCutoff } from '@/lib/discovery/past-window';
 import type { ConferenceInput } from '@/lib/types';
 
 export const TESTING_CONFERENCES_SOURCE =
   'https://raw.githubusercontent.com/TestingConferences/testingconferences.github.io/main/_data/current.yml';
+
+/** Historische lijst (bron 'testing-conferences-past'); alleen records vanaf 12 maanden geleden. */
+export const TESTING_CONFERENCES_PAST_SOURCE =
+  'https://raw.githubusercontent.com/TestingConferences/testingconferences.github.io/main/_data/past.yml';
 
 const MONTHS = [
   'january',
@@ -63,7 +68,10 @@ function parseLocation(value: unknown): Pick<ConferenceInput, 'city' | 'country'
   };
 }
 
-export function parseTestingConferenceRecord(value: unknown): ConferenceInput {
+export function parseTestingConferenceRecord(
+  value: unknown,
+  sourceUrl: string = TESTING_CONFERENCES_SOURCE,
+): ConferenceInput {
   if (typeof value !== 'object' || value === null || Array.isArray(value)) {
     throw new Error('Record moet een object zijn');
   }
@@ -76,7 +84,7 @@ export function parseTestingConferenceRecord(value: unknown): ConferenceInput {
     official_url: officialUrl,
     canonical_url: normalizeUrl(officialUrl),
     source_name: 'testing-conferences',
-    source_url: TESTING_CONFERENCES_SOURCE,
+    source_url: sourceUrl,
     ...parseTestingDates(record.dates),
     ...parseLocation(record.location),
     category: /\btest[\s-]+automation\b|\bautomated testing\b/i.test(name)
@@ -89,7 +97,16 @@ export function parseTestingConferenceRecord(value: unknown): ConferenceInput {
   };
 }
 
-export function parseTestingConferencesYaml(text: string): {
+type YamlOptions = {
+  sourceUrl?: string;
+  /** Alleen records met begindatum vanaf deze datum; oudere (ook ongeldige) worden overgeslagen. */
+  since?: string;
+};
+
+export function parseTestingConferencesYaml(
+  text: string,
+  { sourceUrl = TESTING_CONFERENCES_SOURCE, since }: YamlOptions = {},
+): {
   items: ConferenceInput[];
   errors: string[];
 } {
@@ -101,8 +118,13 @@ export function parseTestingConferencesYaml(text: string): {
   const errors: string[] = [];
   for (const [index, record] of data.entries()) {
     try {
-      items.push(parseTestingConferenceRecord(record));
+      const item = parseTestingConferenceRecord(record, sourceUrl);
+      if (since && item.start_date < since) continue;
+      items.push(item);
     } catch (error) {
+      // Historische bron: fouten in records van vóór het venster niet melden.
+      const dates = (record as { dates?: unknown } | null)?.dates;
+      if (since && !mentionsYearSince(dates, since)) continue;
       errors.push(
         `Record ${index + 1}: ${error instanceof Error ? error.message : 'Ongeldig record'}`,
       );
@@ -116,8 +138,23 @@ export async function fetchTestingConferences(): Promise<{
   items: ConferenceInput[];
   errors: string[];
 }> {
+  return fetchTestingYaml(TESTING_CONFERENCES_SOURCE);
+}
+
+/** Historische lijst: conferenties met begindatum vanaf 12 maanden geleden. */
+export async function fetchTestingConferencesPast(now: Date = new Date()): Promise<{
+  items: ConferenceInput[];
+  errors: string[];
+}> {
+  return fetchTestingYaml(TESTING_CONFERENCES_PAST_SOURCE, pastCutoff(now));
+}
+
+async function fetchTestingYaml(
+  sourceUrl: string,
+  since?: string,
+): Promise<{ items: ConferenceInput[]; errors: string[] }> {
   try {
-    const response = await fetch(TESTING_CONFERENCES_SOURCE, {
+    const response = await fetch(sourceUrl, {
       cache: 'no-store',
       redirect: 'error',
       signal: AbortSignal.timeout(15_000),
@@ -125,17 +162,15 @@ export async function fetchTestingConferences(): Promise<{
     if (!response.ok) throw new Error(`HTTP ${response.status}`);
     const text = await response.text();
     if (text.length > 1_000_000) throw new Error('YAML-bron is te groot');
-    const result = parseTestingConferencesYaml(text);
+    const result = parseTestingConferencesYaml(text, { sourceUrl, since });
     return {
       items: result.items,
-      errors: result.errors.map((error) => `${TESTING_CONFERENCES_SOURCE}: ${error}`),
+      errors: result.errors.map((error) => `${sourceUrl}: ${error}`),
     };
   } catch (error) {
     return {
       items: [],
-      errors: [
-        `${TESTING_CONFERENCES_SOURCE}: ${error instanceof Error ? error.message : 'Ophalen mislukt'}`,
-      ],
+      errors: [`${sourceUrl}: ${error instanceof Error ? error.message : 'Ophalen mislukt'}`],
     };
   }
 }

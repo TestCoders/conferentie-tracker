@@ -49,7 +49,9 @@ export type ListResponse<T> = { items: T[] };
 
 export type ErrorResponse = { error: string };
 
-export type DiscoverySource = 'confs-tech' | 'testing-conferences';
+/** '-past': historische bronnen, conferenties vanaf 12 maanden geleden. */
+export type DiscoverySource =
+  'confs-tech' | 'testing-conferences' | 'confs-tech-past' | 'testing-conferences-past';
 
 export type DiscoveryRunResponse = {
   source: DiscoverySource;

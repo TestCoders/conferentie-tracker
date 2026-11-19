@@ -2,10 +2,19 @@
 import type { ConferenceInput } from '@/lib/types';
 import { normalizeUrl } from '@/lib/discovery/normalize-url';
 import { readText as text, readDate as date, readUrl as url } from '@/lib/discovery/validation';
+import { pastCutoff } from '@/lib/discovery/past-window';
 
 export const CONFS_TECH_SOURCES = [
   'https://raw.githubusercontent.com/tech-conferences/conference-data/main/conferences/2027/javascript.json',
   'https://raw.githubusercontent.com/tech-conferences/conference-data/main/conferences/2027/devops.json',
+] as const;
+
+/** Historische feeds (bron 'confs-tech-past'); alleen records vanaf 12 maanden geleden. */
+export const CONFS_TECH_PAST_SOURCES = [
+  'https://raw.githubusercontent.com/tech-conferences/conference-data/main/conferences/2026/javascript.json',
+  'https://raw.githubusercontent.com/tech-conferences/conference-data/main/conferences/2026/devops.json',
+  'https://raw.githubusercontent.com/tech-conferences/conference-data/main/conferences/2025/javascript.json',
+  'https://raw.githubusercontent.com/tech-conferences/conference-data/main/conferences/2025/devops.json',
 ] as const;
 
 export function parseConfsTechRecord(value: unknown, sourceUrl: string): ConferenceInput {
@@ -46,8 +55,29 @@ export function parseConfsTechRecord(value: unknown, sourceUrl: string): Confere
 
 /** Alleen deze vaste bronnen ophalen; fouten per bron/record rapporteren. */
 export async function fetchConfsTech(): Promise<{ items: ConferenceInput[]; errors: string[] }> {
+  return fetchConfsTechFeeds(CONFS_TECH_SOURCES);
+}
+
+/**
+ * Historische feeds: conferenties met een begindatum vanaf 12 maanden geleden (inclusief
+ * de rest van het lopende jaar). Oudere records worden overgeslagen, ook als ze ongeldig zijn.
+ */
+export async function fetchConfsTechPast(
+  now: Date = new Date(),
+): Promise<{ items: ConferenceInput[]; errors: string[] }> {
+  const cutoff = pastCutoff(now);
+  return fetchConfsTechFeeds(CONFS_TECH_PAST_SOURCES, (record) => {
+    const start = (record as { startDate?: unknown } | null)?.startDate;
+    return typeof start !== 'string' || start >= cutoff;
+  });
+}
+
+async function fetchConfsTechFeeds(
+  sources: readonly string[],
+  keep: (record: unknown) => boolean = () => true,
+): Promise<{ items: ConferenceInput[]; errors: string[] }> {
   const results = await Promise.all(
-    CONFS_TECH_SOURCES.map(async (sourceUrl) => {
+    sources.map(async (sourceUrl) => {
       const items: ConferenceInput[] = [];
       const errors: string[] = [];
       try {
@@ -60,6 +90,7 @@ export async function fetchConfsTech(): Promise<{ items: ConferenceInput[]; erro
         const data: unknown = await response.json();
         if (!Array.isArray(data)) throw new Error('Bron bevat geen JSON-array');
         for (const [index, record] of data.entries()) {
+          if (!keep(record)) continue;
           try {
             items.push(parseConfsTechRecord(record, sourceUrl));
           } catch (error) {

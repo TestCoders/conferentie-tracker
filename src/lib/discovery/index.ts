@@ -1,6 +1,9 @@
 // Eigenaar: B. Orchestratie: bron ophalen → upsert op (canonical_url, start_date) → ingestion_runs.
-import { fetchConfsTech } from '@/lib/discovery/confs-tech';
-import { fetchTestingConferences } from '@/lib/discovery/testing-conferences';
+import { fetchConfsTech, fetchConfsTechPast } from '@/lib/discovery/confs-tech';
+import {
+  fetchTestingConferences,
+  fetchTestingConferencesPast,
+} from '@/lib/discovery/testing-conferences';
 import { getSupabaseAdmin } from '@/lib/supabase-admin';
 import type { ConferenceInput, DiscoveryRunResponse, DiscoverySource } from '@/lib/types';
 
@@ -18,8 +21,19 @@ export function deduplicateConferences(items: ConferenceInput[]): ConferenceInpu
   return [...unique.values()];
 }
 
+const ADAPTERS: Record<
+  DiscoverySource,
+  () => Promise<{ items: ConferenceInput[]; errors: string[] }>
+> = {
+  'confs-tech': fetchConfsTech,
+  'testing-conferences': fetchTestingConferences,
+  // Historie: afgelopen 12 maanden, zodat bezoekers die als "bijgewoond" kunnen markeren.
+  'confs-tech-past': () => fetchConfsTechPast(),
+  'testing-conferences-past': () => fetchTestingConferencesPast(),
+};
+
 export async function runDiscovery(source: DiscoverySource): Promise<DiscoveryRunResponse> {
-  const adapter = source === 'confs-tech' ? fetchConfsTech : fetchTestingConferences;
+  const adapter = ADAPTERS[source];
   const db = getSupabaseAdmin();
   const { data: run, error: startError } = await db
     .from('ingestion_runs')

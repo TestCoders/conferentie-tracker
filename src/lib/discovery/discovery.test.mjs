@@ -306,3 +306,72 @@ test('endpoint checks auth before parsing and rejects invalid or unsupported inp
   assert.equal(yamlResult.source, 'testing-conferences');
   assert.equal(yamlResult.errors.length, 1);
 });
+
+// ---------- Historische bronnen (afgelopen 12 maanden) ----------
+
+const { fetchConfsTechPast, CONFS_TECH_PAST_SOURCES } = await import('@/lib/discovery/confs-tech');
+const { fetchTestingConferencesPast, TESTING_CONFERENCES_PAST_SOURCE } =
+  await import('@/lib/discovery/testing-conferences');
+const { pastCutoff, mentionsYearSince } = await import('@/lib/discovery/past-window');
+
+test('past window: cutoff is 365 days back and year detection for error reporting', () => {
+  assert.equal(pastCutoff(new Date('2026-11-19T12:00:00Z')), '2025-11-19');
+  assert.equal(mentionsYearSince('November 12-13, 2026', '2025-11-19'), true);
+  assert.equal(mentionsYearSince('TBA 2019', '2025-11-19'), false);
+  assert.equal(mentionsYearSince(undefined, '2025-11-19'), false);
+});
+
+test('confs-tech-past keeps records from the last 12 months and skips older ones silently', async () => {
+  const now = new Date('2026-11-19T12:00:00Z');
+  const fetched = [];
+  globalThis.fetch = async (input, init) => {
+    fetched.push(String(input));
+    assert.equal(init.redirect, 'error');
+    if (String(input) !== CONFS_TECH_PAST_SOURCES[0]) return Response.json([]);
+    return Response.json([
+      { ...record, startDate: '2026-03-11', endDate: '2026-03-12' },
+      { ...record, name: 'Te oud', startDate: '2025-06-01', endDate: '2025-06-02' },
+      { name: 'Te oud en ongeldig', startDate: '2025-01-01' },
+      { ...record, name: 'Rest van het jaar', startDate: '2026-12-03', endDate: '2026-12-03' },
+    ]);
+  };
+  const result = await fetchConfsTechPast(now);
+  assert.deepEqual(fetched.sort(), [...CONFS_TECH_PAST_SOURCES].sort());
+  assert.deepEqual(
+    result.items.map((i) => i.start_date),
+    ['2026-03-11', '2026-12-03'],
+  );
+  // Lege feeds melden zichzelf; het ongeldige oude record niet.
+  assert.ok(result.errors.every((e) => /bevat geen conferenties/.test(e)));
+});
+
+test('testing-conferences-past uses past.yml, filters to the window and tags its source', async () => {
+  const now = new Date('2026-11-19T12:00:00Z');
+  globalThis.fetch = async (input) => {
+    assert.equal(input, TESTING_CONFERENCES_PAST_SOURCE);
+    return new Response(`- name: Tokyo Test Fest 2026
+  location: Tokyo, Japan
+  dates: "November 12-13, 2026"
+  url: https://tokyotestfest.com/en/?utm_source=testingconferences
+- name: Old Conf 2019
+  location: Paris, France
+  dates: "May 2-3, 2019"
+  url: https://old.example/
+- name: Broken Old 2018
+  location: Nowhere
+  dates: "TBA 2018"
+  url: https://broken.example/
+- name: Broken Recent 2026
+  location: Somewhere
+  dates: "TBA 2026"
+  url: https://recent.example/
+`);
+  };
+  const result = await fetchTestingConferencesPast(now);
+  assert.deepEqual(
+    result.items.map((i) => [i.name, i.start_date, i.source_url]),
+    [['Tokyo Test Fest 2026', '2026-11-12', TESTING_CONFERENCES_PAST_SOURCE]],
+  );
+  assert.equal(result.errors.length, 1);
+  assert.match(result.errors[0], /Record 4/);
+});

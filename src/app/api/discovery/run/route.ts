@@ -3,7 +3,12 @@ import { runDiscovery } from '@/lib/discovery';
 import { jsonError, requireAdmin } from '@/lib/http';
 import type { DiscoveryRunResponse, DiscoverySource } from '@/lib/types';
 
-const ALLOWED_SOURCES: DiscoverySource[] = ['confs-tech', 'testing-conferences'];
+const ALLOWED_SOURCES: DiscoverySource[] = [
+  'confs-tech',
+  'testing-conferences',
+  'confs-tech-past',
+  'testing-conferences-past',
+];
 export const maxDuration = 60;
 
 export async function POST(request: Request) {
