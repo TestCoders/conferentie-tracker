@@ -122,10 +122,11 @@ export function ConferenceRow({
         ) : null}
       </div>
 
-      {/* Vaste kolom, rechts uitgelijnd: knop en vinkje staan in elke rij op dezelfde plek. */}
-      <div className="flex flex-col items-end gap-2 sm:flex-row sm:items-center sm:justify-end sm:gap-3">
+      {/* Vaste kolom: ster links, badge en vinkje rechts — in elke rij op dezelfde plek,
+          ook als de badge breder is (bijv. met een rating). */}
+      <div className="flex flex-col items-end gap-2 sm:grid sm:grid-cols-[2rem_minmax(0,1fr)_auto] sm:items-center sm:gap-3">
         {favorite}
-        {community}
+        <div className="sm:justify-self-end">{community}</div>
         <label
           htmlFor={checkboxId}
           className={`flex items-center gap-2 font-mono text-xs ${
