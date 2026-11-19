@@ -82,7 +82,7 @@ Regels:
 
 - Data-afspraken uit het contract: datums `YYYY-MM-DD`, IDs UUID, onbekend = `null` (nooit `''` en **nooit verzonnen**). In de UI tonen we `null` als `Onbekend`.
 - Alle DB-toegang **alleen server-side** via `getSupabaseAdmin()` uit `@/lib/supabase-admin`. Nooit importeren in een `'use client'`-bestand.
-- Geen environment variable met `NEXT_PUBLIC_` voor secrets. Secrets: `SUPABASE_SERVICE_ROLE_KEY`, `ADMIN_TOKEN`.
+- Geen environment variable met `NEXT_PUBLIC_` voor secrets. Secrets: `SUPABASE_SERVICE_ROLE_KEY`, `AUTH_SECRET`, `AUTH_MICROSOFT_ENTRA_ID_SECRET`, `OPENROUTER_API_KEY`.
 - Beheer-endpoints beginnen met:
   ```ts
   const denied = await requireAdmin(request);
@@ -123,9 +123,7 @@ Nieuwe dependency? **Eerst aan A vragen.** A beheert `package.json` en de lockfi
 
 ```bash
 curl -s localhost:3000/api/conferences | jq
-curl -s -X POST localhost:3000/api/discovery/run \
-  -H "Authorization: Bearer $ADMIN_TOKEN" -H 'Content-Type: application/json' \
-  -d '{"source":"confs-tech"}' | jq
+# Beheer-endpoints vereisen een ingelogde Entra-sessie met Admin-rol; start een import via /admin.
 ```
 
 ## Authenticatie na demo 1

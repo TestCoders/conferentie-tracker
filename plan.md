@@ -41,7 +41,7 @@ pas daarna vergelijken, beoordelen en uitbreiden._
 | Discovery     | Gestructureerde live feeds (confs.tech JSON, TestingConferences YAML) + door admin toegevoegde feeds |
 | AI            | Optioneel, alleen voor **verrijking** (OpenRouter); nooit nodig om records te ontdekken              |
 | Updates       | Handmatige, idempotente herimport via `/admin`; **geplande herimport nog te bouwen**                 |
-| Authenticatie | Beheer via `ADMIN_TOKEN`; Entra-login in PR #20                                                      |
+| Authenticatie | Microsoft Entra-login; beheer via Entra-app-rol Admin (geen `ADMIN_TOKEN`)                           |
 | Git           | Eén branch per pakket, strikt bestandseigenaarschap, één integrator (A) — zie `AGENTS.md`            |
 
 **Waarom niet SQLite?** Het bestandssysteem van een Vercel Function is niet blijvend en niet gedeeld.

@@ -9,7 +9,7 @@ Automatisch ontdekken, vergelijken en beoordelen van conferenties over developme
 
 ```bash
 npm install
-cp .env.example .env.local   # vul SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, ADMIN_TOKEN in
+cp .env.example .env.local   # vul Supabase- en AUTH_MICROSOFT_ENTRA_ID_*-waarden in
 npm run dev                  # http://localhost:3000  ·  beheer: /admin
 ```
 
