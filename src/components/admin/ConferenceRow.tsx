@@ -2,6 +2,7 @@
 // Eigenaar: D. Eén beheerregel: status wijzigen en beperkte correcties (ADMIN_EDITABLE_FIELDS).
 import { useState, type FormEvent } from 'react';
 import { BTN_PRIMARY, BTN_SECONDARY, FIELD, FIELD_LABEL } from '@/components/admin/styles';
+import { formatEuro } from '@/lib/costs';
 import type { Conference, ConferencePatch, ConferenceStatus } from '@/lib/types';
 
 type Props = {
@@ -27,7 +28,14 @@ export function ConferenceRow({ conference: c, onUpdate }: Props) {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [editing, setEditing] = useState(false);
-  const [draft, setDraft] = useState({ name: '', city: '', country: '', cfp_deadline: '' });
+  const [draft, setDraft] = useState({
+    name: '',
+    city: '',
+    country: '',
+    cfp_deadline: '',
+    ticket_price_eur: '',
+    ticket_price_url: '',
+  });
 
   async function apply(patch: ConferencePatch): Promise<boolean> {
     setBusy(true);
@@ -44,6 +52,8 @@ export function ConferenceRow({ conference: c, onUpdate }: Props) {
       city: c.city ?? '',
       country: c.country ?? '',
       cfp_deadline: c.cfp_deadline ?? '',
+      ticket_price_eur: c.ticket_price_eur === null ? '' : String(c.ticket_price_eur),
+      ticket_price_url: c.ticket_price_url ?? '',
     });
     setError(null);
     setEditing(true);
@@ -51,11 +61,18 @@ export function ConferenceRow({ conference: c, onUpdate }: Props) {
 
   async function saveEdit(e: FormEvent<HTMLFormElement>) {
     e.preventDefault();
+    const price = draft.ticket_price_eur.trim();
+    if (price !== '' && !/^\d+$/.test(price)) {
+      setError('Ticketprijs: gebruik hele euro’s, zonder komma of valuta-teken.');
+      return;
+    }
     const ok = await apply({
       name: draft.name,
       city: draft.city.trim() || null,
       country: draft.country.trim() || null,
       cfp_deadline: draft.cfp_deadline || null,
+      ticket_price_eur: price === '' ? null : Number(price),
+      ticket_price_url: draft.ticket_price_url.trim() || null,
     });
     if (ok) setEditing(false);
   }
@@ -87,7 +104,25 @@ export function ConferenceRow({ conference: c, onUpdate }: Props) {
           <p className="text-ink-soft text-sm">
             {dates} · <Unknown value={location} /> ·{' '}
             <span className="text-ink-muted font-mono text-xs">cfp:</span>{' '}
-            <Unknown value={c.cfp_deadline} />
+            <Unknown value={c.cfp_deadline} /> ·{' '}
+            <span className="text-ink-muted font-mono text-xs">ticket:</span>{' '}
+            {c.online_only ? (
+              <span className="text-ink-muted font-mono text-xs">[online] </span>
+            ) : null}
+            {c.ticket_price_eur === null ? (
+              <Unknown value={null} />
+            ) : c.ticket_price_url ? (
+              <a
+                href={c.ticket_price_url}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="hover:underline"
+              >
+                {formatEuro(c.ticket_price_eur)} ↗
+              </a>
+            ) : (
+              formatEuro(c.ticket_price_eur)
+            )}
           </p>
           <p className="text-ink-muted font-mono text-xs">
             <a
@@ -173,7 +208,29 @@ export function ConferenceRow({ conference: c, onUpdate }: Props) {
               onChange={(e) => setDraft({ ...draft, cfp_deadline: e.target.value })}
             />
           </label>
-          <div className="flex items-end gap-2">
+          <label className={FIELD_LABEL}>
+            --ticketprijs-eur (officieel, per persoon; leeg = onbekend)
+            <input
+              inputMode="numeric"
+              className={FIELD}
+              maxLength={5}
+              value={draft.ticket_price_eur}
+              onChange={(e) => setDraft({ ...draft, ticket_price_eur: e.target.value })}
+            />
+          </label>
+          <label className={FIELD_LABEL}>
+            --ticket-bron (https-link naar de prijs op de officiële site)
+            <input
+              type="url"
+              className={FIELD}
+              maxLength={2000}
+              pattern="https://.*"
+              placeholder="https://…/tickets"
+              value={draft.ticket_price_url}
+              onChange={(e) => setDraft({ ...draft, ticket_price_url: e.target.value })}
+            />
+          </label>
+          <div className="flex items-end gap-2 sm:col-span-2">
             <button type="submit" disabled={busy} className={BTN_PRIMARY}>
               Opslaan
             </button>

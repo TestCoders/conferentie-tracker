@@ -21,6 +21,11 @@ export function parseConfsTechRecord(value: unknown, sourceUrl: string): Confere
   }
   const endDate = date(record.endDate, 'endDate');
   if (endDate && endDate < startDate) throw new Error('Einddatum ligt vóór begindatum');
+  const city = text(record.city, 'city');
+  const country = text(record.country, 'country');
+  // `online: true` betekent bij confs.tech ook hybride; alleen zonder fysieke plaats is het online-only.
+  const isOnlinePlace = (place: string | null) => place === null || /^online$/i.test(place);
+  const onlineOnly = record.online === true && isOnlinePlace(city) && isOnlinePlace(country);
   return {
     name,
     official_url: officialUrl,
@@ -29,8 +34,9 @@ export function parseConfsTechRecord(value: unknown, sourceUrl: string): Confere
     source_url: sourceUrl,
     start_date: startDate,
     end_date: endDate,
-    city: text(record.city, 'city'),
-    country: text(record.country, 'country'),
+    city: onlineOnly ? null : city,
+    country: onlineOnly ? null : country,
+    online_only: onlineOnly,
     category: 'development',
     cfp_url: url(record.cfpUrl, 'cfpUrl'),
     cfp_deadline: date(record.cfpEndDate, 'cfpEndDate'),

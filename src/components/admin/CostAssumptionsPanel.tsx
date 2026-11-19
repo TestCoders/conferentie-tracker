@@ -9,7 +9,7 @@ import {
   FIELD_LABEL,
   PROMPT,
 } from '@/components/admin/styles';
-import { countryKey, formatEuro } from '@/lib/costs';
+import { countryKey, DEFAULT_COST_COUNTRY_KEY, formatEuro } from '@/lib/costs';
 import type {
   Conference,
   CostAssumption,
@@ -87,6 +87,7 @@ export function CostAssumptionsPanel({ token }: { token: string }) {
       byKey.set(key, row);
     }
     for (const a of assumptions ?? []) {
+      if (a.country_key === DEFAULT_COST_COUNTRY_KEY) continue;
       const row = byKey.get(a.country_key) ?? {
         key: a.country_key,
         label: a.country_label,
@@ -102,7 +103,9 @@ export function CostAssumptionsPanel({ token }: { token: string }) {
     );
   }, [conferences, assumptions]);
 
-  const withoutCountry = (conferences ?? []).filter((c) => !countryKey(c.country)).length;
+  const withoutCountry = (conferences ?? []).filter(
+    (c) => !c.online_only && !countryKey(c.country),
+  ).length;
 
   function draftFor(row: Row): Draft {
     return (
@@ -117,13 +120,14 @@ export function CostAssumptionsPanel({ token }: { token: string }) {
     setDrafts((prev) => ({ ...prev, [key]: { ...base, ...prev[key], ...patch } }));
   }
 
-  async function save(label: string, key: string, draft: Draft) {
+  /** `label` gaat naar de API ('*' = standaard); `display` is voor meldingen. */
+  async function save(label: string, key: string, draft: Draft, display = label) {
     setError(null);
     setNotice(null);
     const travelEur = Number(draft.travel);
     const hotelPerNightEur = Number(draft.hotel);
     if (draft.travel === '' || draft.hotel === '') {
-      setError(`Vul reis en hotel in voor ${label}.`);
+      setError(`Vul reis en hotel in voor ${display}.`);
       return;
     }
     if (!Number.isInteger(travelEur) || !Number.isInteger(hotelPerNightEur)) {
@@ -151,7 +155,7 @@ export function CostAssumptionsPanel({ token }: { token: string }) {
         delete next[key];
         return next;
       });
-      setNotice(`✓ Aanname voor ${label} opgeslagen.`);
+      setNotice(`✓ Aanname voor ${display} opgeslagen.`);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Opslaan mislukt');
     } finally {
@@ -164,8 +168,9 @@ export function CostAssumptionsPanel({ token }: { token: string }) {
     setNotice(null);
     setBusyKey(row.key);
     try {
+      const country = row.key === DEFAULT_COST_COUNTRY_KEY ? DEFAULT_COST_COUNTRY_KEY : row.label;
       const res = await fetch(
-        `/api/admin/cost-assumptions?country=${encodeURIComponent(row.label)}`,
+        `/api/admin/cost-assumptions?country=${encodeURIComponent(country)}`,
         { method: 'DELETE', headers: { Authorization: `Bearer ${token}` } },
       );
       if (!res.ok) {
@@ -179,6 +184,22 @@ export function CostAssumptionsPanel({ token }: { token: string }) {
     }
   }
 
+  const defaultAssumption =
+    assumptions?.find((a) => a.country_key === DEFAULT_COST_COUNTRY_KEY) ?? null;
+  const defaultRow: Row = {
+    key: DEFAULT_COST_COUNTRY_KEY,
+    label: 'de standaardaanname',
+    conferences: 0,
+    assumption: defaultAssumption,
+  };
+  const defaultDraft = draftFor(defaultRow);
+  const defaultDirty =
+    !defaultAssumption ||
+    defaultDraft.travel !== String(defaultAssumption.travel_eur) ||
+    defaultDraft.hotel !== String(defaultAssumption.hotel_per_night_eur);
+  // Landen uit de geladen conferenties die op de standaardaanname terugvallen.
+  const onDefault = rows.filter((r) => !r.assumption && r.conferences > 0);
+
   const newKey = countryKey(newCountry);
   const newDraft = drafts['__new__'] ?? { travel: '', hotel: '' };
 
@@ -190,8 +211,9 @@ export function CostAssumptionsPanel({ token }: { token: string }) {
           <h2 className="font-display mt-1 text-xl font-semibold">Kostenaannames per land</h2>
           <p className="text-ink-soft mt-1 max-w-2xl text-sm">
             Reis retour vanuit Nederland en hotel per nacht, per persoon in hele euro’s. De explorer
-            schat daarmee: reis + hotel × aantal conferentiedagen. Zonder aanname blijft het{' '}
-            <em>Onbekend</em>; de ticketprijs komt later via de AI-koppeling (roadmap #1).
+            schat daarmee: reis + hotel × aantal conferentiedagen. Landen zonder eigen aanname
+            gebruiken de <em>standaardaanname</em>; online conferenties kosten geen reis of hotel.
+            De officiële ticketprijs vul je per conferentie in via <em>✎ Corrigeren</em>.
           </p>
         </div>
         <button type="button" className={BTN_SECONDARY} onClick={loadCountries} disabled={!token}>
@@ -215,6 +237,79 @@ export function CostAssumptionsPanel({ token }: { token: string }) {
           Vul eerst het admin-token in om landen te laden en aannames te bewerken.
         </p>
       ) : null}
+
+      <form
+        className={`${CARD} flex flex-wrap items-end gap-3`}
+        onSubmit={(e) => {
+          e.preventDefault();
+          void save(
+            DEFAULT_COST_COUNTRY_KEY,
+            DEFAULT_COST_COUNTRY_KEY,
+            defaultDraft,
+            'de standaardaanname',
+          );
+        }}
+      >
+        <div className="min-w-0 basis-full space-y-1 sm:flex-1 sm:basis-auto">
+          <p className="font-semibold">
+            Standaardaanname (overige landen)
+            {defaultAssumption ? null : (
+              <span className="text-ink-muted ml-2 font-mono text-[11px] font-normal">
+                niet ingesteld: landen zonder aanname blijven Onbekend
+              </span>
+            )}
+          </p>
+          <p className="text-ink-muted font-mono text-xs">
+            {onDefault.length > 0
+              ? `Nu gebruikt voor: ${onDefault.map((r) => r.label).join(', ')}`
+              : 'Voor elk land zonder eigen aanname; in de explorer gelabeld als standaardaanname.'}
+          </p>
+        </div>
+        <label className={FIELD_LABEL}>
+          --reis
+          <input
+            inputMode="numeric"
+            aria-label="Standaard reis retour in euro"
+            value={defaultDraft.travel}
+            onChange={(e) =>
+              setDraft(DEFAULT_COST_COUNTRY_KEY, { travel: e.target.value }, defaultDraft)
+            }
+            className={AMOUNT_FIELD}
+            disabled={!token}
+          />
+        </label>
+        <label className={FIELD_LABEL}>
+          --hotel
+          <input
+            inputMode="numeric"
+            aria-label="Standaard hotel per nacht in euro"
+            value={defaultDraft.hotel}
+            onChange={(e) =>
+              setDraft(DEFAULT_COST_COUNTRY_KEY, { hotel: e.target.value }, defaultDraft)
+            }
+            className={AMOUNT_FIELD}
+            disabled={!token}
+          />
+        </label>
+        <button
+          type="submit"
+          className={BTN_PRIMARY}
+          disabled={!token || !defaultDirty || busyKey === DEFAULT_COST_COUNTRY_KEY}
+        >
+          {busyKey === DEFAULT_COST_COUNTRY_KEY ? '…' : 'opslaan'}
+        </button>
+        {defaultAssumption ? (
+          <button
+            type="button"
+            className={BTN_SECONDARY}
+            disabled={!token || busyKey === DEFAULT_COST_COUNTRY_KEY}
+            onClick={() => remove(defaultRow)}
+            aria-label="Standaardaanname verwijderen"
+          >
+            ✕
+          </button>
+        ) : null}
+      </form>
 
       {rows.length > 0 ? (
         <div className={`${CARD} overflow-x-auto p-0`}>
@@ -251,7 +346,7 @@ export function CostAssumptionsPanel({ token }: { token: string }) {
                       {row.label}
                       {row.assumption ? null : (
                         <span className="text-ink-muted ml-2 font-mono text-[11px] font-normal">
-                          geen aanname
+                          {defaultAssumption ? 'gebruikt standaard' : 'geen aanname'}
                         </span>
                       )}
                     </th>
@@ -312,7 +407,8 @@ export function CostAssumptionsPanel({ token }: { token: string }) {
       {conferences && withoutCountry > 0 ? (
         <p className="text-ink-muted font-mono text-xs">
           {withoutCountry} {withoutCountry === 1 ? 'conferentie heeft' : 'conferenties hebben'} geen
-          land; die krijgen geen schatting tot het land bekend is (bijv. via de AI-koppeling).
+          land (locatie nog onbekend); die krijgen geen schatting tot het land bekend is. Online
+          conferenties tellen hier niet mee: die krijgen altijd een schatting.
         </p>
       ) : null}
 

@@ -5,18 +5,21 @@
  *   reis    = aanname voor het land (retour vanuit NL, per persoon)
  *   hotel   = aanname per nacht × aantal nachten
  *   nachten = aantal conferentiedagen (aankomst de avond ervoor, vertrek na de laatste dag)
- *   ticket  = officiële prijs als die bekend is, anders niet meegeteld
- * Zonder land of zonder aanname voor dat land: geen reis/hotel-schatting (Onbekend).
+ *   ticket  = officiële prijs (door een beheerder ingevuld) als die bekend is, anders niet meegeteld
+ * Geen aanname voor het land: de standaardaanname (country_key '*'), duidelijk als zodanig getoond.
+ * Online-only: reis en hotel zijn € 0. Locatie onbekend (TBA): geen schatting (Onbekend).
  *
- * AANSLUITPUNT ROADMAP #1 (AI-koppeling): zodra een officiële ticketprijs beschikbaar is,
- * geef die mee als `ticket` aan `estimateCosts`. De UI telt hem dan automatisch mee in het
- * totaal en toont de bron. Ook een door #1 aangevuld `country` levert vanzelf een schatting op.
- * Waar de prijs wordt opgeslagen, bepaalt #1; koppel het in `ticketFor` hieronder.
+ * AANSLUITPUNT ROADMAP #1 (AI-koppeling): laat #1 `ticket_price_eur` en `ticket_price_url`
+ * vullen; `ticketFor` en de UI nemen die dan vanzelf mee.
  */
 import type { Conference, CostAssumption } from '@/lib/types';
 
 export const COST_ASSUMPTION_COLUMNS =
   'country_key,country_label,travel_eur,hotel_per_night_eur,updated_at';
+
+/** country_key van de standaardaanname voor landen zonder eigen aanname. */
+export const DEFAULT_COST_COUNTRY_KEY = '*';
+export const DEFAULT_COST_LABEL = 'standaard (overige landen)';
 
 /** Varianten uit de bronnen die hetzelfde land bedoelen. */
 const COUNTRY_ALIASES: Record<string, string> = {
@@ -54,16 +57,19 @@ export function conferenceDays(c: Pick<Conference, 'start_date' | 'end_date'>): 
 /** Officiële ticketprijs (per persoon, hele euro's) met bron. */
 export type TicketPrice = { amount: number; sourceUrl: string | null };
 
-/**
- * Officiële ticketprijs van een conferentie. Nu altijd null: geen bron levert prijzen.
- * Roadmap #1 koppelt hier het veld dat de AI-koppeling vult.
- */
-export function ticketFor(c: Conference): TicketPrice | null {
-  void c;
-  return null;
+/** Officiële ticketprijs van een conferentie, of null als die (nog) onbekend is. */
+export function ticketFor(
+  c: Pick<Conference, 'ticket_price_eur' | 'ticket_price_url'>,
+): TicketPrice | null {
+  if (c.ticket_price_eur === null) return null;
+  return { amount: c.ticket_price_eur, sourceUrl: c.ticket_price_url };
 }
 
+/** Waar reis/hotel op gebaseerd zijn. */
+export type CostBasis = 'country' | 'default' | 'online';
+
 export type CostEstimate = {
+  basis: CostBasis;
   countryLabel: string;
   travel: number;
   hotelPerNight: number;
@@ -79,17 +85,32 @@ export function assumptionMap(items: CostAssumption[]): Map<string, CostAssumpti
 }
 
 export function estimateCosts(
-  c: Pick<Conference, 'country' | 'start_date' | 'end_date'>,
+  c: Pick<Conference, 'country' | 'start_date' | 'end_date' | 'online_only'>,
   assumptions: Map<string, CostAssumption>,
   ticket: TicketPrice | null = null,
 ): CostEstimate | null {
+  if (c.online_only) {
+    return {
+      basis: 'online',
+      countryLabel: 'online',
+      travel: 0,
+      hotelPerNight: 0,
+      nights: 0,
+      hotel: 0,
+      ticket,
+      total: ticket?.amount ?? 0,
+    };
+  }
   const key = countryKey(c.country);
-  const a = key ? assumptions.get(key) : undefined;
+  if (!key || key === DEFAULT_COST_COUNTRY_KEY) return null;
+  const own = assumptions.get(key);
+  const a = own ?? assumptions.get(DEFAULT_COST_COUNTRY_KEY);
   if (!a) return null;
   const nights = conferenceDays(c);
   const hotel = a.hotel_per_night_eur * nights;
   return {
-    countryLabel: a.country_label,
+    basis: own ? 'country' : 'default',
+    countryLabel: own ? a.country_label : DEFAULT_COST_LABEL,
     travel: a.travel_eur,
     hotelPerNight: a.hotel_per_night_eur,
     nights,

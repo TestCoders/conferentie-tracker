@@ -2,14 +2,28 @@
 import { formatEuro, type CostEstimate } from '@/lib/costs';
 import { UNKNOWN } from './format';
 
+/** Waar de reis-/hotelschatting op gebaseerd is, kort. */
+export function basisNote(e: CostEstimate): string {
+  if (e.basis === 'online') return 'online, geen reis';
+  if (e.basis === 'default') return 'standaardaanname';
+  return `aanname ${e.countryLabel}`;
+}
+
 /** Uitleg van de berekening, voor tooltip en schermlezer. */
 export function costExplanation(e: CostEstimate): string {
   const ticket = e.ticket
     ? `ticket ${formatEuro(e.ticket.amount)} (officieel)`
     : 'ticket onbekend, niet meegeteld';
-  return `Schatting: reis ${formatEuro(e.travel)} (aanname ${e.countryLabel}) + hotel ${e.nights} ${
+  if (e.basis === 'online') {
+    return `Online conferentie: geen reis- of hotelkosten; ${ticket}. Totaal ${formatEuro(e.total)}.`;
+  }
+  const basis =
+    e.basis === 'default'
+      ? 'standaardaanname, geen aanname voor dit land'
+      : `aanname ${e.countryLabel}`;
+  return `Schatting: reis ${formatEuro(e.travel)} (${basis}) + hotel ${e.nights} ${
     e.nights === 1 ? 'nacht' : 'nachten'
-  } × ${formatEuro(e.hotelPerNight)} = ${formatEuro(e.total)}; ${ticket}.`;
+  } × ${formatEuro(e.hotelPerNight)}; ${ticket}. Totaal ${formatEuro(e.total)}.`;
 }
 
 export function CostValue({ estimate }: { estimate: CostEstimate | null }) {
@@ -51,12 +65,14 @@ export function CostBreakdown({ estimate }: { estimate: CostEstimate }) {
       </li>
       <li>
         reis {formatEuro(estimate.travel)}{' '}
-        <span className="text-ink-muted">aanname {estimate.countryLabel}</span>
+        <span className="text-ink-muted">{basisNote(estimate)}</span>
       </li>
       <li>
         hotel {formatEuro(estimate.hotel)}{' '}
         <span className="text-ink-muted">
-          {estimate.nights} × {formatEuro(estimate.hotelPerNight)}
+          {estimate.basis === 'online'
+            ? 'online, geen hotel'
+            : `${estimate.nights} × ${formatEuro(estimate.hotelPerNight)}`}
         </span>
       </li>
     </ul>

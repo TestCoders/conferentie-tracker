@@ -296,7 +296,9 @@ export function Explorer() {
           >
             <span>
               budget = reis + hotel (schatting){' '}
-              {Object.values(costs).some((e) => e?.ticket) ? '+ ticket' : '· ticket nog onbekend'}
+              {Object.values(costs).some((e) => e?.ticket)
+                ? '+ ticket waar bekend'
+                : '· ticket nog onbekend'}
             </span>
             {unknownCostVisible > 0 || hideUnknownCost ? (
               <label className="flex cursor-pointer items-center gap-1.5">
