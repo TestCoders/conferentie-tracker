@@ -430,7 +430,13 @@ export function Explorer() {
           <span className="text-adopt">✓</span> {visible.length} van {inPeriod.length} conferenties
           · {PERIOD_LABELS[period].toLowerCase()}
           {year !== 'all' ? ` · ${year}` : ''}
-          {onlyFavorites ? ' · alleen favorieten' : ''}
+          {onlyFavorites
+            ? favorites.source === 'account'
+              ? ' · alleen favorieten (in je account)'
+              : favorites.signedIn
+                ? ' · alleen favorieten (in deze browser)'
+                : ' · alleen favorieten (in deze browser — log in om ze in je account te bewaren)'
+            : ''}
           {selected.length === 1 ? ' · selecteer nog 1 om te vergelijken' : ''}
           {onlyFavorites && visible.length > 0 ? (
             <>

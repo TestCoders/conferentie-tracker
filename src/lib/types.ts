@@ -287,6 +287,12 @@ export type CommunityStats = {
 };
 export type CommunitySummaryResponse = { items: Record<string, CommunityStats> };
 
+/** GET /api/favorites — conferentie-IDs van de ingelogde gebruiker. */
+export type FavoritesResponse = { items: string[] };
+
+/** POST /api/favorites — één of meer conferenties toevoegen (max. 500). */
+export type AddFavoritesRequest = { conferenceIds: string[] };
+
 /**
  * Kostenaanname per land (roadmap #4), beheerd door een admin. Bedragen in hele euro's,
  * per persoon: reis retour vanuit Nederland en hotel per nacht.

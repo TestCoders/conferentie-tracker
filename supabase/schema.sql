@@ -115,3 +115,6 @@ alter table public.discovery_sources enable row level security;
 -- AI-verrijking: zie migrations/20261119_ai_enrichment.sql (conferences.ai_checked_at,
 -- conferences.ai_fields, cost_assumptions.source en cost_assumptions.note).
 
+
+-- Favorieten per account (roadmap R5): zie migrations/20261119_favorites.sql
+-- (favorites: user_id → app_users, conference_id → conferences, primary key op beide).
