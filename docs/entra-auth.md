@@ -66,8 +66,9 @@ supabase/migrations/20261119_entra_identity.sql
 
 De bestaande ervaringenmigratie moet al zijn uitgevoerd. De migratie is transactioneel en opnieuw
 uitvoerbaar. Zij maakt `app_users` met een lokale UUID en unieke `(tenant_id, entra_object_id)`,
-voegt nullable `user_id`-verwijzingen toe aan reviews, deelnemers en ervaringen, en vervangt
-naamuniciteit door accountuniciteit. Oude anonieme bijdragen worden niet automatisch geclaimd.
+voegt nullable `user_id`-verwijzingen toe aan reviews, deelnemers en ervaringen, en voegt
+accountuniciteit toe. De oude naamconstraint blijft tijdelijk bestaan zodat de huidige productiecode
+zijn bestaande upsert kan blijven uitvoeren. Oude anonieme bijdragen worden niet automatisch geclaimd.
 Deelnemers en ratings worden op user-ID gekoppeld; uitsluitend legacyrecords gebruiken onderling
 nog naamkoppeling. In de review-/deelnemersinterface zijn legacybijdragen herkenbaar.
 
@@ -76,6 +77,16 @@ attendance met optionele review wordt atomair opgeslagen. Er is één actuele re
 attendance per account per conferentie. Herhalen wijzigt de eigen bijdrage zonder dubbelen.
 Beoordelen kan pas vanaf de begindatum. Nieuwe verzoeken met `reviewerName`, `personName` of
 `authorName` worden geweigerd; de auteur wordt server-side uit de sessie bepaald.
+
+**Na de deployment:** voer `supabase/migrations/20261119_entra_after_deploy.sql` uit zodra alle
+anonieme schrijfpaden zijn vervangen door de nieuwe versie. Dit verwijdert pas dan de oude
+naamconstraint. Tot deze tweede stap weigert de bijdragefunctie accountgebonden reviews/attendance
+expliciet met een melding over de overgang; login en beheer kunnen al worden gecontroleerd. Zo
+kunnen de oude anonieme schrijver en nieuwe geverifieerde bijdragen niet door elkaar lopen. Voor
+een afzonderlijke test-DB kunnen beide migraties na elkaar worden uitgevoerd.
+
+Als de eerste versie van de identiteitsmigratie al is uitgevoerd, voer de bijgewerkte
+`20261119_entra_identity.sql` nogmaals uit om de oude conflictconstraint tijdelijk terug te zetten.
 
 De nieuwe tabellen hebben RLS aan en geen publieke gebruikerspolicies. Alle DB-toegang loopt via
 server-side API-routes en de service-role client. Die client omzeilt RLS: de server controleert
@@ -123,5 +134,5 @@ Controleer daarnaast met echte toegewezen accounts:
 
 Bewaar geen codes, cookies, tokens of client-secretwaarden in testlogs/screenshots. Rol bij fouten
 de applicatiedeployment terug zonder de bestaande bijdragegegevens te verwijderen; de toegevoegde
-nullable identiteitskolommen kunnen blijven staan. Oudere deployments met naamuniciteit vereisen
-extra aandacht omdat die constraint is vervangen; deploy geen oud anoniem schrijfpad als fallback.
+nullable identiteitskolommen kunnen blijven staan. Na de tweede migratie werkt de oude naamgebaseerde
+upsert niet meer; rol dan geen anoniem schrijfpad terug zonder expliciet herstel-/toegangsplan.

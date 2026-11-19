@@ -17,7 +17,17 @@ grant all on public.app_users to service_role;
 alter table public.reviews add column if not exists user_id uuid references public.app_users(id);
 alter table public.attendances add column if not exists user_id uuid references public.app_users(id);
 alter table public.experiences add column if not exists user_id uuid references public.app_users(id);
-alter table public.attendances drop constraint if exists attendances_conference_id_name_key_key;
+-- Keep the old deployment's ON CONFLICT target until the authenticated version is live.
+-- Also restores compatibility when the initial revision of this migration was already applied.
+do $$
+begin
+  if not exists (select 1 from pg_constraint where conrelid = 'public.attendances'::regclass
+      and conname = 'attendances_conference_id_name_key_key') then
+    alter table public.attendances add constraint attendances_conference_id_name_key_key
+      unique (conference_id, name_key);
+  end if;
+end;
+$$;
 create unique index if not exists attendances_conference_user_key on public.attendances(conference_id, user_id);
 create unique index if not exists reviews_conference_user_key on public.reviews(conference_id, user_id);
 
@@ -37,6 +47,12 @@ declare
   v_attendance public.attendances;
   v_review public.reviews;
 begin
+  -- Avoid mixing verified account writes with the old anonymous production writer.
+  if exists (select 1 from pg_constraint where conrelid = 'public.attendances'::regclass
+      and conname = 'attendances_conference_id_name_key_key') then
+    raise exception 'Bijdragen worden overgezet naar Microsoft-accounts. Probeer na de uitrol opnieuw.'
+      using errcode = '55000';
+  end if;
   if not exists (select 1 from public.app_users where id = p_user_id and disabled_at is null) then
     raise exception 'Account niet beschikbaar' using errcode = '42501';
   end if;

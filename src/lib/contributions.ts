@@ -31,9 +31,11 @@ export async function saveContribution(
       response: Response.json(
         {
           error:
-            status === 503
-              ? 'Bijdrage opslaan mislukt. Controleer de Entra-migratie.'
-              : error.message,
+            error.code === '55000'
+              ? 'Bijdragen worden overgezet naar Microsoft-accounts. Probeer na de uitrol opnieuw.'
+              : status === 503
+                ? 'Bijdrage opslaan mislukt. Controleer de Entra-migratie.'
+                : error.message,
         },
         { status },
       ),
