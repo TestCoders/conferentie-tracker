@@ -79,6 +79,18 @@ create table if not exists public.cost_assumptions (
   updated_at timestamptz not null default now()
 );
 
+-- Handmatig toegevoegde discoverybronnen (zie ook migrations/20261119_discovery_sources.sql).
+create table if not exists public.discovery_sources (
+  id uuid primary key default gen_random_uuid(),
+  name text not null check (char_length(btrim(name)) between 1 and 60),
+  name_key text generated always as (lower(btrim(name))) stored,
+  url text not null check (url like 'https://%' and char_length(url) <= 2000),
+  format text not null check (format in ('confs-tech-json', 'testing-conferences-yaml')),
+  created_at timestamptz not null default now(),
+  unique (name_key),
+  unique (url)
+);
+
 -- Publieke clients praten uitsluitend met de Next.js API, niet direct met Supabase.
 -- De server gebruikt de service-role key. Maak voor deze demo GEEN publieke policies.
 alter table public.conferences enable row level security;
@@ -86,6 +98,7 @@ alter table public.reviews enable row level security;
 alter table public.ingestion_runs enable row level security;
 alter table public.attendances enable row level security;
 alter table public.cost_assumptions enable row level security;
+alter table public.discovery_sources enable row level security;
 
 -- Ervaringen en foto's (roadmap #3): zie migrations/20261119_experiences.sql voor de
 -- volledige definitie, inclusief de storage-bucket 'experience-photos'.

@@ -4,8 +4,13 @@ import {
   fetchTestingConferences,
   fetchTestingConferencesPast,
 } from '@/lib/discovery/testing-conferences';
+import { loadCostCoverage } from '@/lib/discovery/cost-coverage';
+import { fetchCustomSource, getCustomSource } from '@/lib/discovery/custom-sources';
+import type { FetchResult } from '@/lib/discovery/fetch-source';
 import { getSupabaseAdmin } from '@/lib/supabase-admin';
 import type { ConferenceInput, DiscoveryRunResponse, DiscoverySource } from '@/lib/types';
+
+export class SourceNotFoundError extends Error {}
 
 function conferenceKey(item: Pick<ConferenceInput, 'canonical_url' | 'start_date'>): string {
   return JSON.stringify([item.canonical_url, item.start_date]);
@@ -21,10 +26,7 @@ export function deduplicateConferences(items: ConferenceInput[]): ConferenceInpu
   return [...unique.values()];
 }
 
-const ADAPTERS: Record<
-  DiscoverySource,
-  () => Promise<{ items: ConferenceInput[]; errors: string[] }>
-> = {
+const ADAPTERS: Record<DiscoverySource, () => Promise<FetchResult>> = {
   'confs-tech': fetchConfsTech,
   'testing-conferences': fetchTestingConferences,
   // Historie: afgelopen 12 maanden, zodat bezoekers die als "bijgewoond" kunnen markeren.
@@ -32,8 +34,30 @@ const ADAPTERS: Record<
   'testing-conferences-past': () => fetchTestingConferencesPast(),
 };
 
-export async function runDiscovery(source: DiscoverySource): Promise<DiscoveryRunResponse> {
-  const adapter = ADAPTERS[source];
+export function runDiscovery(source: DiscoverySource): Promise<DiscoveryRunResponse> {
+  return runIngestion(source, ADAPTERS[source]);
+}
+
+/** Een door een beheerder toegevoegde bron; dezelfde pipeline als de vaste bronnen. */
+export async function runCustomDiscovery(sourceId: string): Promise<DiscoveryRunResponse> {
+  const source = await getCustomSource(sourceId);
+  if (!source) throw new SourceNotFoundError('Bron niet gevonden');
+  let fetched: ConferenceInput[] = [];
+  const result = await runIngestion(source.name, async () => {
+    const response = await fetchCustomSource(source);
+    fetched = response.items;
+    return response;
+  });
+  const coverage = await loadCostCoverage(deduplicateConferences(fetched));
+  if (coverage) result.costCoverage = coverage;
+  return result;
+}
+
+/** Ophalen → ontdubbelen → upsert op (canonical_url, start_date) → ingestion_runs. */
+async function runIngestion(
+  source: string,
+  adapter: () => Promise<FetchResult>,
+): Promise<DiscoveryRunResponse> {
   const db = getSupabaseAdmin();
   const { data: run, error: startError } = await db
     .from('ingestion_runs')

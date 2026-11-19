@@ -5,6 +5,7 @@ import { ConferenceRow } from '@/components/admin/ConferenceRow';
 import { AiEnrichmentPanel } from '@/components/admin/AiEnrichmentPanel';
 import { CostAssumptionsPanel } from '@/components/admin/CostAssumptionsPanel';
 import { ExperiencesModerationPanel } from '@/components/admin/ExperiencesModerationPanel';
+import { SourceManager } from '@/components/admin/SourceManager';
 import {
   BTN_PRIMARY,
   BTN_SECONDARY,
@@ -18,6 +19,9 @@ import {
   type Conference,
   type ConferencePatch,
   type ConferenceStatus,
+  type CreateCustomSourceRequest,
+  type CustomDiscoverySource,
+  type DiscoveryRunRequest,
   type DiscoveryRunResponse,
   type DiscoverySource,
   type ErrorResponse,
@@ -25,6 +29,9 @@ import {
 } from '@/lib/types';
 
 type StatusFilter = ConferenceStatus | 'all';
+
+/** Waarde van de bron-keuzelijst: een vaste bron-key, of `custom:<uuid>`. */
+type SourceChoice = DiscoverySource | `custom:${string}`;
 
 const SOURCES: { value: DiscoverySource; label: string }[] = [
   { value: 'confs-tech', label: 'confs.tech' },
@@ -40,7 +47,10 @@ async function readError(res: Response): Promise<string> {
 
 export function AdminPanel() {
   const [token, setToken] = useState('');
-  const [source, setSource] = useState<DiscoverySource>('confs-tech');
+  const [source, setSource] = useState<SourceChoice>('confs-tech');
+  const [customSources, setCustomSources] = useState<CustomDiscoverySource[] | null>(null);
+  const [sourcesError, setSourcesError] = useState<string | null>(null);
+  const [sourcesLoading, setSourcesLoading] = useState(false);
   const [result, setResult] = useState<DiscoveryRunResponse | null>(null);
   const [runError, setRunError] = useState<string | null>(null);
   const [running, setRunning] = useState(false);
@@ -69,6 +79,55 @@ export function AdminPanel() {
     }
   }
 
+  async function loadSources() {
+    setSourcesLoading(true);
+    setSourcesError(null);
+    try {
+      const res = await fetch('/api/admin/sources', { headers: authHeaders });
+      if (!res.ok) {
+        setSourcesError(await readError(res));
+        return;
+      }
+      setCustomSources(((await res.json()) as ListResponse<CustomDiscoverySource>).items);
+    } catch (err) {
+      setSourcesError(err instanceof Error ? err.message : 'Netwerkfout');
+    } finally {
+      setSourcesLoading(false);
+    }
+  }
+
+  async function createSource(input: CreateCustomSourceRequest): Promise<string | null> {
+    try {
+      const res = await fetch('/api/admin/sources', {
+        method: 'POST',
+        headers: authHeaders,
+        body: JSON.stringify(input),
+      });
+      if (!res.ok) return await readError(res);
+      const created = (await res.json()) as CustomDiscoverySource;
+      setCustomSources((prev) => [...(prev ?? []), created]);
+      setSource(`custom:${created.id}`);
+      return null;
+    } catch (err) {
+      return err instanceof Error ? err.message : 'Netwerkfout';
+    }
+  }
+
+  async function deleteSource(id: string): Promise<string | null> {
+    try {
+      const res = await fetch(`/api/admin/sources/${id}`, {
+        method: 'DELETE',
+        headers: authHeaders,
+      });
+      if (!res.ok) return await readError(res);
+      setCustomSources((prev) => prev?.filter((s) => s.id !== id) ?? null);
+      if (source === `custom:${id}`) setSource('confs-tech');
+      return null;
+    } catch (err) {
+      return err instanceof Error ? err.message : 'Netwerkfout';
+    }
+  }
+
   async function runDiscovery() {
     setRunning(true);
     setRunError(null);
@@ -77,7 +136,11 @@ export function AdminPanel() {
       const res = await fetch('/api/discovery/run', {
         method: 'POST',
         headers: authHeaders,
-        body: JSON.stringify({ source }),
+        body: JSON.stringify(
+          (source.startsWith('custom:')
+            ? { sourceId: source.slice('custom:'.length) }
+            : { source: source as DiscoverySource }) satisfies DiscoveryRunRequest,
+        ),
       });
       if (!res.ok) {
         setRunError(await readError(res));
@@ -144,13 +207,24 @@ export function AdminPanel() {
             <select
               className={FIELD}
               value={source}
-              onChange={(e) => setSource(e.target.value as DiscoverySource)}
+              onChange={(e) => setSource(e.target.value as SourceChoice)}
             >
-              {SOURCES.map((s) => (
-                <option key={s.value} value={s.value}>
-                  {s.label}
-                </option>
-              ))}
+              <optgroup label="Vaste bronnen">
+                {SOURCES.map((s) => (
+                  <option key={s.value} value={s.value}>
+                    {s.label}
+                  </option>
+                ))}
+              </optgroup>
+              {customSources && customSources.length > 0 && (
+                <optgroup label="Eigen bronnen">
+                  {customSources.map((s) => (
+                    <option key={s.id} value={`custom:${s.id}`}>
+                      {s.name}
+                    </option>
+                  ))}
+                </optgroup>
+              )}
             </select>
           </label>
           <button
@@ -192,6 +266,41 @@ export function AdminPanel() {
             <p className="text-ink-muted font-mono text-xs">
               <span className="text-adopt">✓</span> bron: {result.source}
             </p>
+            {result.costCoverage && (
+              <div className={`${CARD} space-y-1 font-mono text-xs`}>
+                <p className="text-ink">
+                  kostenschatting: {result.costCoverage.withEstimate} van {result.found} met
+                  schatting voor reis + hotel
+                  {result.costCoverage.online > 0 &&
+                    ` (waarvan ${result.costCoverage.online} online: € 0)`}
+                </p>
+                {result.costCoverage.onDefault.length > 0 && (
+                  <p className="text-ink-soft">
+                    Standaardaanname gebruikt voor: {result.costCoverage.onDefault.join(', ')}. Een
+                    eigen aanname onder &quot;Kostenaannames per land&quot; maakt dit nauwkeuriger.
+                  </p>
+                )}
+                {result.costCoverage.missingCountries.length > 0 && (
+                  <p className="text-signal">
+                    ⚠ Geen aanname (en geen standaardaanname) voor:{' '}
+                    {result.costCoverage.missingCountries.join(', ')}. Die blijven Onbekend en
+                    vallen buiten het budgetfilter tot je een aanname instelt, of de
+                    AI-kostenschatting (AI-verrijking) ze laat schatten.
+                  </p>
+                )}
+                {result.costCoverage.withoutLocation > 0 && (
+                  <p className="text-ink-soft">
+                    {result.costCoverage.withoutLocation} zonder bekende locatie (TBA): Onbekend tot
+                    het land bekend is (in te vullen via ✎ Corrigeren).
+                  </p>
+                )}
+                <p className="text-ink-muted">
+                  Ticketprijs: deze feeds bevatten geen prijzen. De AI-verrijking (conferenties)
+                  haalt ze van de officiële website; je kunt ze ook invullen via ✎ Corrigeren. Let
+                  op: een AI-run ververst ook handmatig ingevulde prijzen.
+                </p>
+              </div>
+            )}
             {result.errors.length > 0 && (
               <ul className="text-alert list-disc space-y-1 pl-5 font-mono text-xs">
                 {result.errors.map((e, i) => (
@@ -202,6 +311,16 @@ export function AdminPanel() {
           </div>
         )}
       </section>
+
+      <SourceManager
+        sources={customSources}
+        loading={sourcesLoading}
+        error={sourcesError}
+        disabled={!token}
+        onLoad={loadSources}
+        onCreate={createSource}
+        onDelete={deleteSource}
+      />
 
       <section className="space-y-4">
         <div className="flex flex-wrap items-end justify-between gap-3">
