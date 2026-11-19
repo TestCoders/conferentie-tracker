@@ -133,6 +133,70 @@ export type UpsertCostAssumptionRequest = {
   hotelPerNightEur: number;
 };
 
+/* ---------- Ervaringen delen (roadmap #3) ---------- */
+
+export const WOULD_RETURN = ['yes', 'maybe', 'no'] as const;
+export type WouldReturn = (typeof WOULD_RETURN)[number];
+
+export type ExperiencePhoto = {
+  id: string;
+  experience_id: string;
+  /** Publieke URL in de storage-bucket. */
+  url: string;
+  caption: string | null;
+  width: number | null;
+  height: number | null;
+  created_at: string;
+};
+
+/** Verslag van een bezoek, user-generated (geen login). */
+export type Experience = {
+  id: string;
+  conference_id: string | null;
+  conference_name: string;
+  conference_date: string | null;
+  conference_city: string | null;
+  author_name: string;
+  title: string;
+  summary: string;
+  report: string | null;
+  rating: number;
+  would_return: WouldReturn;
+  recommended_for: Category[];
+  highlights: string[];
+  tips: string | null;
+  links: string[];
+  created_at: string;
+  photos: ExperiencePhoto[];
+};
+
+/** POST /api/experiences — conferenceId óf conferenceName is verplicht. */
+export type CreateExperienceRequest = {
+  conferenceId?: string | null;
+  conferenceName?: string | null;
+  conferenceDate?: string | null;
+  conferenceCity?: string | null;
+  authorName: string;
+  title: string;
+  summary: string;
+  report?: string | null;
+  rating: number;
+  wouldReturn: WouldReturn;
+  recommendedFor?: Category[];
+  highlights?: string[];
+  tips?: string | null;
+  links?: string[];
+};
+
+/** Het bewerktoken wordt één keer teruggegeven en is nodig om foto's toe te voegen. */
+export type CreateExperienceResponse = { experience: Experience; editToken: string };
+
+/** Conferentie om een ervaring aan te koppelen (ook afgelopen edities). */
+export type ExperienceConference = Pick<
+  Conference,
+  'id' | 'name' | 'start_date' | 'end_date' | 'city' | 'country'
+>;
+
 /** Kolommen die we teruggeven als Conference (geen created_at/updated_at). */
 export const CONFERENCE_COLUMNS =
   'id,name,official_url,canonical_url,source_name,source_url,start_date,end_date,city,country,category,cfp_url,cfp_deadline,price_text,status,last_checked_at';

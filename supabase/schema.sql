@@ -76,3 +76,6 @@ alter table public.reviews enable row level security;
 alter table public.ingestion_runs enable row level security;
 alter table public.attendances enable row level security;
 alter table public.cost_assumptions enable row level security;
+
+-- Ervaringen en foto's (roadmap #3): zie migrations/20261119_experiences.sql voor de
+-- volledige definitie, inclusief de storage-bucket 'experience-photos'.

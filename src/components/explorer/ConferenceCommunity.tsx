@@ -1,5 +1,6 @@
 'use client';
 // Eigenaar: C. Wie heeft interesse / heeft het bijgewoond, met hun sterren, plus reviews (component van D).
+import Link from 'next/link';
 import { useEffect, useState, type FormEvent } from 'react';
 import { Reviews } from '@/components/reviews/Reviews';
 import type {
@@ -273,6 +274,14 @@ export function ConferenceCommunity({ conference: c, onChanged, stacked = false 
       <section aria-label={`Reviews van ${c.name}`}>
         <h3 className="text-ink-soft mb-2 font-mono text-sm">$ cat reviews.md</h3>
         <Reviews key={reload} conferenceId={c.id} />
+        <p className="border-hairline mt-4 border-t pt-3 text-sm">
+          <Link
+            href={`/ervaringen?conference=${encodeURIComponent(c.id)}`}
+            className="text-signal font-semibold hover:underline"
+          >
+            📝 Verslagen en foto&apos;s van {c.name} →
+          </Link>
+        </p>
       </section>
     </div>
   );
