@@ -203,6 +203,9 @@ test('custom discovery run upserts idempotently and endpoint validates sourceId'
         })),
       );
     }
+    if (request.method === 'GET' && url.pathname.endsWith('/conferences')) {
+      return Response.json([...conferences.values()]);
+    }
     const body = await request.json();
     if (url.pathname.endsWith('/ingestion_runs')) {
       if (request.method === 'POST') {

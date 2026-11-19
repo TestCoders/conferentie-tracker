@@ -104,7 +104,8 @@ test('adapter retains valid records and reports failed feeds and invalid records
   };
   const result = await fetchConfsTech();
   assert.equal(result.items.length, 1);
-  assert.equal(result.errors.length, 2);
+  // 1 ongeldig record + elke andere feed faalt
+  assert.equal(result.errors.length, CONFS_TECH_SOURCES.length);
   assert.match(result.errors.join('\n'), /record 2/);
   assert.match(result.errors.join('\n'), /HTTP 503/);
 });
@@ -196,6 +197,9 @@ for (const source of ['confs-tech', 'testing-conferences']) {
       }
       if (request.url === TESTING_CONFERENCES_SOURCE) return new Response(testingYaml);
       assert.equal(url.origin, 'https://discovery-test.invalid');
+      if (request.method === 'GET' && url.pathname.endsWith('/conferences')) {
+        return Response.json([...conferences.values()]);
+      }
       const body = await request.json();
       if (url.pathname.endsWith('/ingestion_runs')) {
         assert.equal(typeof body, 'object');
@@ -263,7 +267,7 @@ for (const source of ['confs-tech', 'testing-conferences']) {
     globalThis.fetch = async () => new Response(null, { status: 503 });
     const partial = await fetchConfsTech();
     assert.equal(partial.items.length, 0);
-    assert.equal(partial.errors.length, 2);
+    assert.equal(partial.errors.length, CONFS_TECH_SOURCES.length);
   });
 }
 
@@ -301,7 +305,7 @@ test('endpoint checks auth before parsing and rejects invalid or unsupported inp
   const result = await response.json();
   assert.equal(result.source, 'confs-tech');
   assert.equal(result.inserted, 0);
-  assert.equal(result.errors.length, 2);
+  assert.equal(result.errors.length, CONFS_TECH_SOURCES.length);
   const yamlResponse = await POST(request('{"source":"testing-conferences"}'));
   assert.equal(yamlResponse.status, 200);
   const yamlResult = await yamlResponse.json();
@@ -440,4 +444,87 @@ test('images: fetch checks every redirect hop and reports blocked pages', async 
   await assert.rejects(fetchConferenceImages('https://evil.example.com'), /publieke/);
   assert.ok(!seen.some((url) => url.includes('169.254')));
   await assert.rejects(fetchConferenceImages('https://blocked.example.com'), /HTTP 403/);
+});
+
+const { classifyConference, confsTechFeedCategory, strongerCategory } =
+  await import('@/lib/discovery/classify');
+
+test('classify: name raises the category only on explicit evidence, never lowers it', () => {
+  // Echte namen uit confs.tech en TestingConferences.
+  for (const name of [
+    'Test Automation Days',
+    'RoboCon 2027 Helsinki',
+    'SeleniumConf & AppiumConf 2026',
+  ]) {
+    assert.equal(classifyConference(name, 'development'), 'test-automation', name);
+  }
+  for (const name of [
+    'ParisTestConf',
+    'STAREAST',
+    'EuroSTAR Conference',
+    'TestBash UK',
+    'expo:QA 27',
+  ]) {
+    assert.equal(classifyConference(name, 'development'), 'testing', name);
+  }
+  for (const name of ['JSNation', 'DevOpsDays Amsterdam', 'Contest Summit', 'Latest in Vue']) {
+    assert.equal(classifyConference(name, 'development'), 'development', name);
+  }
+  assert.equal(classifyConference('DevOpsDays Raleigh', 'testing'), 'testing');
+  assert.equal(strongerCategory('test-automation', 'development'), 'test-automation');
+  assert.equal(strongerCategory('development', 'testing'), 'testing');
+});
+
+test('classify: confs.tech testing feed is evidence for testing', () => {
+  assert.equal(confsTechFeedCategory(CONFS_TECH_SOURCES.at(-1)), 'testing');
+  assert.equal(confsTechFeedCategory(CONFS_TECH_SOURCES[0]), 'development');
+  const testingFeed = CONFS_TECH_SOURCES.find((url) => url.endsWith('/testing.json'));
+  assert.ok(testingFeed);
+  assert.equal(parseConfsTechRecord(record, testingFeed).category, 'testing');
+  assert.equal(parseConfsTechRecord(record, CONFS_TECH_SOURCES[0]).category, 'development');
+});
+
+test('dedupe keeps the strongest category across topic feeds', () => {
+  const base = parseConfsTechRecord(record, CONFS_TECH_SOURCES[0]);
+  const [merged] = deduplicateConferences([base, { ...base, category: 'testing' }]);
+  assert.equal(merged.category, 'testing');
+  assert.equal(merged.source_url, CONFS_TECH_SOURCES[0]);
+});
+
+test('repeat import never lowers a stored category', async () => {
+  process.env.SUPABASE_URL = 'https://discovery-test.invalid';
+  process.env.SUPABASE_SERVICE_ROLE_KEY = 'test-only-key';
+  const stored = new Map();
+  const updates = [];
+  globalThis.fetch = async (input, init) => {
+    const request = new Request(input, init);
+    const url = new URL(request.url);
+    if (CONFS_TECH_SOURCES.includes(request.url)) {
+      return Response.json(request.url.endsWith('/testing.json') ? [] : [record]);
+    }
+    if (request.method === 'GET') return Response.json([...stored.values()]);
+    const body = await request.json();
+    if (url.pathname.endsWith('/ingestion_runs')) {
+      return request.method === 'POST'
+        ? Response.json({ id: 'run' })
+        : new Response(null, { status: 204 });
+    }
+    const ignore = request.headers.get('prefer')?.includes('resolution=ignore-duplicates');
+    const returned = [];
+    for (const row of body) {
+      const key = JSON.stringify([row.canonical_url, row.start_date]);
+      if (ignore && stored.has(key)) continue;
+      if (!ignore) updates.push(row);
+      stored.set(key, { ...stored.get(key), ...row });
+      returned.push({ canonical_url: row.canonical_url, start_date: row.start_date });
+    }
+    return Response.json(returned);
+  };
+  await runDiscovery('confs-tech');
+  const [first] = stored.values();
+  assert.equal(first.category, 'development');
+  first.category = 'testing'; // bijv. eerder door de testing-feed of een andere bron
+  const result = await runDiscovery('confs-tech');
+  assert.equal(result.updated, 1);
+  assert.equal(updates[0].category, 'testing');
 });
