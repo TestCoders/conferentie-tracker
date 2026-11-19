@@ -153,21 +153,21 @@ Datums `YYYY-MM-DD`, IDs UUID, fouten `{ "error": "..." }` met passende status
 - Contractuitbreidingen zijn gemerged terwijl de commits "NIET MERGEN zonder akkoord" vermeldden:
   `online_only`, ticketvelden (#15), AI-velden (#16), afbeeldingen, `discovery_sources` (#19).
   Migraties zijn in Supabase gedraaid; akkoord van het team nog formeel vastleggen.
-- #19 maakt een bewuste uitzondering op "nooit een URL uit gebruikersinput fetchen" (alleen admin,
-  met SSRF-bescherming). `AGENTS.md` hierop aanpassen of de uitzondering expliciet goedkeuren.
+- ✅ #19 haalt door een beheerder ingevoerde feeds op. `AGENTS.md` §4 beschrijft nu wanneer dat mag:
+  alleen admin, alleen via een SSRF-veilige helper.
 
 ### Bekende problemen
 
-| #   | Probleem                                                                                                | Impact                                      | Eigenaar       | Grootte |
-| --- | ------------------------------------------------------------------------------------------------------- | ------------------------------------------- | -------------- | ------- |
-| K1  | Gedeeltelijke import (bijv. overgeslagen TBA-records) heet `failed`, ook als er records zijn ingelezen. | Admin ziet "failed" bij geslaagde import.   | B (+ A schema) | S       |
-| K2  | Reviews en aanmeldingen zonder login of rate limiting; beheer via één gedeeld token.                    | Alleen geschikt voor gecontroleerd gebruik. | D + A          | M       |
-| K3  | `npm run format:check` faalt lokaal op Windows door `core.autocrlf`.                                    | `npm run check` lokaal rood; CI groen.      | A              | XS      |
-| K4  | Prettier sorteert Tailwind-classes met eigen kleurtokens niet goed.                                     | Alleen cosmetisch.                          | A              | XS      |
-| K5  | Preview-deployments staan achter Vercel-login.                                                          | Reviewers kunnen PR-previews niet openen.   | A              | XS      |
-| K6  | confs.tech-records krijgen altijd categorie `development`.                                              | Testing in confs.tech-data niet herkend.    | B              | M       |
-| K7  | Gratis OpenRouter-modellen zijn traag en wisselend; slechts 1 officiële ticketprijs gevonden.           | Kosten vaak "excl. ticket".                 | B/D            | M       |
-| K8  | Geen UI-tests.                                                                                          | Regressies pas zichtbaar in de browser.     | C              | M       |
+| #   | Probleem                                                                                                           | Impact                                      | Eigenaar       | Grootte |
+| --- | ------------------------------------------------------------------------------------------------------------------ | ------------------------------------------- | -------------- | ------- |
+| K1  | Gedeeltelijke import (bijv. overgeslagen TBA-records) heet `failed`, ook als er records zijn ingelezen.            | Admin ziet "failed" bij geslaagde import.   | B (+ A schema) | S       |
+| K2  | Reviews en aanmeldingen zonder login of rate limiting; beheer via één gedeeld token.                               | Alleen geschikt voor gecontroleerd gebruik. | D + A          | M       |
+| K3  | ✅ Opgelost met `.gitattributes` (`eol=lf`). Bestaande clone: eenmalig `git rm -r --cached . && git reset --hard`. | —                                           | A              | XS      |
+| K4  | Prettier sorteert Tailwind-classes met eigen kleurtokens niet goed.                                                | Alleen cosmetisch.                          | A              | XS      |
+| K5  | Preview-deployments staan achter Vercel-login.                                                                     | Reviewers kunnen PR-previews niet openen.   | A              | XS      |
+| K6  | confs.tech-records krijgen altijd categorie `development`.                                                         | Testing in confs.tech-data niet herkend.    | B              | M       |
+| K7  | Gratis OpenRouter-modellen zijn traag en wisselend; slechts 1 officiële ticketprijs gevonden.                      | Kosten vaak "excl. ticket".                 | B/D            | M       |
+| K8  | Geen UI-tests.                                                                                                     | Regressies pas zichtbaar in de browser.     | C              | M       |
 
 ---
 
@@ -186,15 +186,16 @@ Datums `YYYY-MM-DD`, IDs UUID, fouten `{ "error": "..." }` met passende status
 
 ### Should
 
-| #   | Todo                                                                                                   | Eigenaar | Grootte |
-| --- | ------------------------------------------------------------------------------------------------------ | -------- | ------- |
-| S1  | A reviewt procesafwijkingen (§5) en legt contractakkoord vast; `AGENTS.md` bijwerken voor admin-feeds. | A        | S       |
-| S2  | `.gitattributes` met `* text=auto eol=lf` (K3).                                                        | A        | XS      |
-| S3  | Importgeschiedenis (`ingestion_runs`) tonen in `/admin`.                                               | D        | S       |
-| S4  | Betere classificatie: testing/test-automation herkennen in confs.tech; extra feeds.                    | B        | M       |
-| S5  | Officiële website periodiek opnieuw controleren op datum-, prijs- en CFP-wijzigingen.                  | B        | M       |
-| S6  | Losse conferentie-URL toevoegen als `pending` record via AI-extractie (rest van R1).                   | B + D    | M       |
-| S7  | Openstaande branches opruimen (`docs/roadmap`, `docs/updated-plan`, gemergde feature-branches).        | A        | XS      |
+| #   | Todo                                                                                                                 | Eigenaar | Grootte |
+| --- | -------------------------------------------------------------------------------------------------------------------- | -------- | ------- |
+| S1  | A reviewt procesafwijkingen (§5) en legt contractakkoord vast. (`AGENTS.md` voor admin-feeds: ✅)                    | A        | S       |
+| S2  | ✅ `.gitattributes` met `* text=auto eol=lf` (K3).                                                                   | A        | XS      |
+| S3  | Importgeschiedenis (`ingestion_runs`) tonen in `/admin`.                                                             | D        | S       |
+| S4  | Betere classificatie: testing/test-automation herkennen in confs.tech; extra feeds.                                  | B        | M       |
+| S5  | Officiële website periodiek opnieuw controleren op datum-, prijs- en CFP-wijzigingen.                                | B        | M       |
+| S6  | Losse conferentie-URL toevoegen als `pending` record via AI-extractie (rest van R1). 🔄 wordt opgepakt.              | B + D    | M       |
+| S7  | ✅ Gemergde branches opgeruimd; pakketbranches en branches van open PR's blijven.                                    | A        | XS      |
+| S8  | Drie SSRF-implementaties samenvoegen tot één helper (`discovery/fetch-source`, `discovery/images`, `ai/safe-fetch`). | A + B    | S       |
 
 ### Could
 
