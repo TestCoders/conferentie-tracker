@@ -22,8 +22,8 @@ function MicrosoftLogo({ className }: { className?: string }) {
 }
 
 type Props = {
-  /** Compact voor in de header, groot voor de loginpagina. */
-  size?: 'sm' | 'lg';
+  /** sm: header, md: inline in pagina's, lg: loginpagina (volle breedte). */
+  size?: 'sm' | 'md' | 'lg';
   /** Waarheen na inloggen; standaard de huidige pagina. */
   callbackUrl?: string;
   onError?: () => void;
@@ -34,8 +34,11 @@ export function MicrosoftSignInButton({ size = 'lg', callbackUrl, onError }: Pro
   const search = useSearchParams().toString();
   const [busy, setBusy] = useState(false);
   const target = safeCallbackUrl(callbackUrl ?? (search ? `${pathname}?${search}` : pathname));
-  const sizing =
-    size === 'sm' ? 'gap-2 px-3 py-1.5 text-xs' : 'w-full justify-center gap-3 px-5 py-3 text-base';
+  const sizing = {
+    sm: 'gap-2 px-3 py-1.5 text-xs',
+    md: 'gap-2.5 px-4 py-2 text-sm',
+    lg: 'w-full justify-center gap-3 px-5 py-3 text-base',
+  }[size];
   return (
     <button
       type="button"
@@ -52,7 +55,7 @@ export function MicrosoftSignInButton({ size = 'lg', callbackUrl, onError }: Pro
         }
       }}
     >
-      <MicrosoftLogo className={size === 'sm' ? 'h-3.5 w-3.5' : 'h-5 w-5'} />
+      <MicrosoftLogo className={{ sm: 'h-3.5 w-3.5', md: 'h-4 w-4', lg: 'h-5 w-5' }[size]} />
       <span>{busy ? 'Doorsturen…' : size === 'sm' ? 'Inloggen' : 'Inloggen met Microsoft'}</span>
     </button>
   );
