@@ -114,6 +114,25 @@ export type CommunityStats = {
 };
 export type CommunitySummaryResponse = { items: Record<string, CommunityStats> };
 
+/**
+ * Kostenaanname per land (roadmap #4), beheerd door een admin. Bedragen in hele euro's,
+ * per persoon: reis retour vanuit Nederland en hotel per nacht.
+ */
+export type CostAssumption = {
+  country_key: string;
+  country_label: string;
+  travel_eur: number;
+  hotel_per_night_eur: number;
+  updated_at: string;
+};
+
+/** PUT /api/admin/cost-assumptions — upsert op genormaliseerd land. */
+export type UpsertCostAssumptionRequest = {
+  country: string;
+  travelEur: number;
+  hotelPerNightEur: number;
+};
+
 /** Kolommen die we teruggeven als Conference (geen created_at/updated_at). */
 export const CONFERENCE_COLUMNS =
   'id,name,official_url,canonical_url,source_name,source_url,start_date,end_date,city,country,category,cfp_url,cfp_deadline,price_text,status,last_checked_at';

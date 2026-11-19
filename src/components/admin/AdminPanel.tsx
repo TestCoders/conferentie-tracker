@@ -2,6 +2,7 @@
 // Eigenaar: D. Token alleen in React state — niet in URL, localStorage of source code.
 import { useState } from 'react';
 import { ConferenceRow } from '@/components/admin/ConferenceRow';
+import { CostAssumptionsPanel } from '@/components/admin/CostAssumptionsPanel';
 import {
   BTN_PRIMARY,
   BTN_SECONDARY,
@@ -254,6 +255,8 @@ export function AdminPanel() {
           </>
         )}
       </section>
+
+      <CostAssumptionsPanel token={token} />
     </div>
   );
 }

@@ -1,8 +1,10 @@
 // Eigenaar: C. Compacte lijstweergave: één rij per conferentie, goed verticaal te scannen.
 import type { ReactNode } from 'react';
+import type { CostEstimate } from '@/lib/costs';
 import type { Conference } from '@/lib/types';
 import { CATEGORY_LABELS, dateParts, formatDate, formatDateRange, formatLocation } from './format';
 import { CATEGORY_STYLES } from './category-styles';
+import { CostValue } from './CostValue';
 import { Value } from './Value';
 
 type Props = {
@@ -12,6 +14,8 @@ type Props = {
   onToggleSelect: (id: string) => void;
   /** Badge met deelnemers/rating (klapt het community-paneel open). */
   community?: ReactNode;
+  /** Kostenschatting; undefined = aannames niet beschikbaar (dan niet tonen). */
+  cost?: CostEstimate | null;
 };
 
 export function ConferenceRow({
@@ -20,6 +24,7 @@ export function ConferenceRow({
   selectDisabled,
   onToggleSelect,
   community,
+  cost,
 }: Props) {
   const checkboxId = `compare-row-${c.id}`;
   const { day, month, year } = dateParts(c.start_date);
@@ -61,6 +66,11 @@ export function ConferenceRow({
           <span className="text-ink-muted font-mono text-xs">
             cfp: <Value text={formatDate(c.cfp_deadline)} />
           </span>
+          {cost !== undefined ? (
+            <span className="text-ink-muted font-mono text-xs">
+              kosten: <CostValue estimate={cost} />
+            </span>
+          ) : null}
         </p>
       </div>
 
@@ -86,6 +96,14 @@ export function ConferenceRow({
         ) : (
           <Value text={formatDate(c.cfp_deadline)} />
         )}
+        {cost !== undefined ? (
+          <>
+            <span className="text-ink-muted mt-1 block font-mono text-[10px] uppercase">
+              kosten
+            </span>
+            <CostValue estimate={cost} />
+          </>
+        ) : null}
       </div>
 
       <div className="flex flex-col items-end gap-2 sm:flex-row sm:items-center sm:gap-3">

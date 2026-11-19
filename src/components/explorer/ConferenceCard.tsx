@@ -1,8 +1,10 @@
 // Eigenaar: C.
 import type { ReactNode } from 'react';
+import type { CostEstimate } from '@/lib/costs';
 import type { Conference } from '@/lib/types';
 import { CATEGORY_LABELS, formatDate, formatDateRange, formatLocation } from './format';
 import { CATEGORY_STYLES } from './category-styles';
+import { CostBreakdown, CostValue } from './CostValue';
 import { Value } from './Value';
 
 type Props = {
@@ -14,6 +16,8 @@ type Props = {
   community?: ReactNode;
   /** Community-paneel, onderaan in de kaart. */
   children?: ReactNode;
+  /** Kostenschatting; undefined = aannames niet beschikbaar (dan niet tonen). */
+  cost?: CostEstimate | null;
 };
 
 const LABEL = 'font-mono text-xs leading-5 text-ink-muted';
@@ -25,6 +29,7 @@ export function ConferenceCard({
   onToggleSelect,
   community,
   children,
+  cost,
 }: Props) {
   const checkboxId = `compare-${c.id}`;
 
@@ -65,6 +70,19 @@ export function ConferenceCard({
             <Value text={formatDate(c.cfp_deadline)} />
           )}
         </dd>
+        {cost !== undefined ? (
+          <>
+            <dt className={LABEL}>kosten</dt>
+            <dd>
+              <CostValue estimate={cost} />
+              {cost ? (
+                <div className="mt-1">
+                  <CostBreakdown estimate={cost} />
+                </div>
+              ) : null}
+            </dd>
+          </>
+        ) : null}
       </dl>
 
       <div className="border-hairline mt-auto flex flex-wrap items-center justify-between gap-3 border-t pt-3 text-sm">

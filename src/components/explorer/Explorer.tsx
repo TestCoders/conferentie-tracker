@@ -1,12 +1,14 @@
 'use client';
 // Eigenaar: C. Publiek overzicht: zoeken, filteren, sorteren, lijst/kaarten/agenda en 2 vergelijken.
 import { useCallback, useEffect, useMemo, useState } from 'react';
+import { assumptionMap, estimateCosts, ticketFor, type CostEstimate } from '@/lib/costs';
 import {
   CATEGORIES,
   type Category,
   type CommunityStats,
   type CommunitySummaryResponse,
   type Conference,
+  type CostAssumption,
   type ListResponse,
 } from '@/lib/types';
 import { AgendaView } from './AgendaView';
@@ -19,7 +21,7 @@ import { CATEGORY_LABELS } from './format';
 
 const MAX_COMPARE = 2;
 
-type SortOrder = 'asc' | 'desc';
+type SortOrder = 'asc' | 'desc' | 'cost';
 type ViewMode = 'list' | 'cards' | 'agenda';
 
 const VIEW_LABELS: Record<ViewMode, string> = {
@@ -44,6 +46,30 @@ export function Explorer() {
   // undefined = (nog) niet beschikbaar; de lijst werkt dan gewoon zonder tellingen.
   const [stats, setStats] = useState<Record<string, CommunityStats> | undefined>(undefined);
   const [statsVersion, setStatsVersion] = useState(0);
+  // undefined = aannames niet beschikbaar; kosten worden dan niet getoond.
+  const [assumptions, setAssumptions] = useState<CostAssumption[] | undefined>(undefined);
+  const [budget, setBudget] = useState('');
+  const [hideUnknownCost, setHideUnknownCost] = useState(false);
+
+  useEffect(() => {
+    const controller = new AbortController();
+    fetch('/api/cost-assumptions', { signal: controller.signal })
+      .then(async (res) => {
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        setAssumptions(((await res.json()) as ListResponse<CostAssumption>).items);
+      })
+      .catch(() => {
+        // Kosten zijn optioneel; de lijst blokkeert er niet op.
+      });
+    return () => controller.abort();
+  }, []);
+
+  const costs = useMemo<Record<string, CostEstimate | null> | undefined>(() => {
+    // Nog geen aannames ingevuld: kosten nog niet tonen (anders overal 'Onbekend').
+    if (!items || !assumptions || assumptions.length === 0) return undefined;
+    const map = assumptionMap(assumptions);
+    return Object.fromEntries(items.map((c) => [c.id, estimateCosts(c, map, ticketFor(c))]));
+  }, [items, assumptions]);
 
   useEffect(() => {
     const controller = new AbortController();
@@ -98,15 +124,35 @@ export function Explorer() {
   const visible = useMemo(() => {
     if (!items) return [];
     const q = query.trim().toLowerCase();
-    const filtered = items.filter(
-      (c) =>
-        (category === 'all' || c.category === category) &&
-        (q === '' || c.name.toLowerCase().includes(q)),
-    );
-    const direction = sortOrder === 'asc' ? 1 : -1;
-    // 'YYYY-MM-DD' sorteert lexicografisch correct.
-    return filtered.sort((a, b) => a.start_date.localeCompare(b.start_date) * direction);
-  }, [items, query, category, sortOrder]);
+    const max = Number(budget);
+    const budgetActive = costs !== undefined && budget !== '' && Number.isFinite(max) && max >= 0;
+    const totalOf = (c: Conference) => costs?.[c.id]?.total ?? null;
+
+    const filtered = items.filter((c) => {
+      if (category !== 'all' && c.category !== category) return false;
+      if (q !== '' && !c.name.toLowerCase().includes(q)) return false;
+      if (!budgetActive) return true;
+      const total = totalOf(c);
+      // Onbekende kosten blijven zichtbaar (onderaan), tenzij expliciet verborgen.
+      return total === null ? !hideUnknownCost : total <= max;
+    });
+
+    const byCost = sortOrder === 'cost' && costs !== undefined;
+    const direction = sortOrder === 'desc' ? -1 : 1;
+    return filtered.sort((a, b) => {
+      if (budgetActive || byCost) {
+        const ta = totalOf(a);
+        const tb = totalOf(b);
+        if ((ta === null) !== (tb === null)) return ta === null ? 1 : -1;
+        if (byCost && ta !== null && tb !== null && ta !== tb) return ta - tb;
+      }
+      // 'YYYY-MM-DD' sorteert lexicografisch correct.
+      return a.start_date.localeCompare(b.start_date) * direction;
+    });
+  }, [items, query, category, sortOrder, budget, hideUnknownCost, costs]);
+
+  const unknownCostVisible =
+    costs !== undefined && budget !== '' ? visible.filter((c) => !costs[c.id]).length : 0;
 
   const selected = useMemo(
     () =>
@@ -148,12 +194,13 @@ export function Explorer() {
           conferences={[selected[0], selected[1]]}
           onClear={() => setSelectedIds([])}
           stats={stats}
+          costs={costs}
         />
       ) : null}
 
       <div className="border-hairline bg-void/90 sticky top-[61px] z-[5] -mx-4 mb-4 border-b px-4 py-3 backdrop-blur">
-        <div className="flex flex-col gap-3 sm:flex-row sm:items-end">
-          <label className={`${FIELD_LABEL} flex-1`}>
+        <div className="flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-end">
+          <label className={`${FIELD_LABEL} min-w-48 flex-1`}>
             --zoek
             <input
               type="search"
@@ -188,8 +235,32 @@ export function Explorer() {
               >
                 <option value="asc">Eerstvolgende eerst</option>
                 <option value="desc">Laatste eerst</option>
+                {costs ? <option value="cost">Goedkoopste eerst</option> : null}
               </select>
             </label>
+          ) : null}
+          {costs ? (
+            <div className="flex flex-col gap-1">
+              <label className={FIELD_LABEL}>
+                --max-budget
+                <span className="relative">
+                  <span className="text-ink-muted pointer-events-none absolute top-1/2 left-3 -translate-y-1/2 text-sm">
+                    €
+                  </span>
+                  <input
+                    type="number"
+                    inputMode="numeric"
+                    min={0}
+                    step={100}
+                    value={budget}
+                    onChange={(e) => setBudget(e.target.value)}
+                    placeholder="geen"
+                    aria-describedby="budget-hint"
+                    className={`${FIELD} w-32 pl-7`}
+                  />
+                </span>
+              </label>
+            </div>
           ) : null}
           <div className={FIELD_LABEL}>
             <span id="view-label">--weergave</span>
@@ -218,6 +289,32 @@ export function Explorer() {
           <span className="text-adopt">✓</span> {visible.length} van {items.length} conferenties
           {selected.length === 1 ? ' · selecteer nog 1 om te vergelijken' : ''}
         </p>
+        {costs && budget !== '' ? (
+          <div
+            id="budget-hint"
+            className="text-ink-muted mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 font-mono text-xs"
+          >
+            <span>
+              budget = reis + hotel (schatting){' '}
+              {Object.values(costs).some((e) => e?.ticket) ? '+ ticket' : '· ticket nog onbekend'}
+            </span>
+            {unknownCostVisible > 0 || hideUnknownCost ? (
+              <label className="flex cursor-pointer items-center gap-1.5">
+                <input
+                  type="checkbox"
+                  className="accent-signal size-3.5"
+                  checked={hideUnknownCost}
+                  onChange={(e) => setHideUnknownCost(e.target.checked)}
+                />
+                verberg {hideUnknownCost ? '' : `${unknownCostVisible} `}zonder kostenschatting
+              </label>
+            ) : null}
+          </div>
+        ) : (
+          <span id="budget-hint" className="sr-only">
+            Maximaal budget in euro voor reis en hotel (schatting).
+          </span>
+        )}
       </div>
 
       {visible.length === 0 ? (
@@ -237,6 +334,7 @@ export function Explorer() {
                   selectDisabled={!isSelected && selectedIds.length >= MAX_COMPARE}
                   onToggleSelect={toggleSelect}
                   community={community.badge}
+                  cost={costs ? (costs[c.id] ?? null) : undefined}
                 />
                 {community.panel}
               </li>
@@ -256,6 +354,7 @@ export function Explorer() {
                   selectDisabled={!isSelected && selectedIds.length >= MAX_COMPARE}
                   onToggleSelect={toggleSelect}
                   community={community.badge}
+                  cost={costs ? (costs[c.id] ?? null) : undefined}
                 >
                   {community.panel}
                 </ConferenceCard>

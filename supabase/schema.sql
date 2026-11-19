@@ -60,9 +60,19 @@ create table if not exists public.attendances (
 );
 create index if not exists attendances_conference_id_idx on public.attendances (conference_id);
 
+-- Kostenaannames per land (zie ook migrations/20261119_cost_assumptions.sql).
+create table if not exists public.cost_assumptions (
+  country_key text primary key check (char_length(country_key) between 1 and 80),
+  country_label text not null check (char_length(country_label) between 1 and 80),
+  travel_eur integer not null check (travel_eur between 0 and 20000),
+  hotel_per_night_eur integer not null check (hotel_per_night_eur between 0 and 5000),
+  updated_at timestamptz not null default now()
+);
+
 -- Publieke clients praten uitsluitend met de Next.js API, niet direct met Supabase.
 -- De server gebruikt de service-role key. Maak voor deze demo GEEN publieke policies.
 alter table public.conferences enable row level security;
 alter table public.reviews enable row level security;
 alter table public.ingestion_runs enable row level security;
 alter table public.attendances enable row level security;
+alter table public.cost_assumptions enable row level security;
