@@ -11,6 +11,7 @@ import {
   tokenMatches,
 } from '@/lib/experiences-server';
 import { jsonError } from '@/lib/http';
+import { requireUser } from '@/lib/auth-access';
 import { getSupabaseAdmin } from '@/lib/supabase-admin';
 import type { ExperiencePhoto } from '@/lib/types';
 
@@ -24,6 +25,8 @@ function dimension(value: FormDataEntryValue | null): number | null {
 }
 
 export async function POST(request: Request, ctx: RouteContext<'/api/experiences/[id]/photos'>) {
+  const access = await requireUser(request);
+  if (access.response) return access.response;
   const { id } = await ctx.params;
   if (!UUID_RE.test(id)) return jsonError('Ongeldige id', 400);
 
@@ -63,11 +66,13 @@ export async function POST(request: Request, ctx: RouteContext<'/api/experiences
     const db = getSupabaseAdmin();
     const exp = await db
       .from('experiences')
-      .select('id,edit_token_hash')
+      .select('id,user_id,edit_token_hash')
       .eq('id', id)
       .maybeSingle();
     if (exp.error) return jsonError(exp.error.message, 500);
     if (!exp.data) return jsonError('Ervaring niet gevonden', 404);
+    if (exp.data.user_id !== access.user.id)
+      return jsonError('Alleen de auteur mag foto’s toevoegen', 403);
     if (!tokenMatches(token, (exp.data as { edit_token_hash: string }).edit_token_hash)) {
       return jsonError('Ongeldig bewerktoken', 403);
     }

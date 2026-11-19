@@ -109,7 +109,7 @@ function parsePatch(body: unknown): ConferencePatch {
 }
 
 export async function PATCH(request: Request, ctx: RouteContext<'/api/admin/conferences/[id]'>) {
-  const denied = requireAdmin(request);
+  const denied = await requireAdmin(request);
   if (denied) return denied;
 
   const { id } = await ctx.params;

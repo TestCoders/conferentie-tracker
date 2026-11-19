@@ -1,4 +1,4 @@
-// Eigenaar: B. POST /api/discovery/run — beveiligd met ADMIN_TOKEN.
+// Eigenaar: B. POST /api/discovery/run — beveiligd met de Entra-adminrol.
 import { runDiscovery } from '@/lib/discovery';
 import { jsonError, requireAdmin } from '@/lib/http';
 import type { DiscoveryRunResponse, DiscoverySource } from '@/lib/types';
@@ -12,7 +12,7 @@ const ALLOWED_SOURCES: DiscoverySource[] = [
 export const maxDuration = 60;
 
 export async function POST(request: Request) {
-  const denied = requireAdmin(request);
+  const denied = await requireAdmin(request);
   if (denied) return denied;
 
   const raw = await request.text();

@@ -85,7 +85,7 @@ Regels:
 - Geen environment variable met `NEXT_PUBLIC_` voor secrets. Secrets: `SUPABASE_SERVICE_ROLE_KEY`, `ADMIN_TOKEN`.
 - Beheer-endpoints beginnen met:
   ```ts
-  const denied = requireAdmin(request);
+  const denied = await requireAdmin(request);
   if (denied) return denied;
   ```
 - Fouten: `jsonError(message, status)` uit `@/lib/http` → `{ "error": "..." }` met passende status (400 validatie, 401 auth, 404 niet gevonden, 500 server, 501 nog niet gebouwd).
@@ -121,6 +121,14 @@ curl -s -X POST localhost:3000/api/discovery/run \
   -H "Authorization: Bearer $ADMIN_TOKEN" -H 'Content-Type: application/json' \
   -d '{"source":"confs-tech"}' | jq
 ```
+
+## Authenticatie na demo 1
+
+Microsoft Entra-login gebruikt de server-side Auth.js-sessie. `requireAdmin(request)` is asynchroon:
+altijd `await` gebruiken vóór databasewerk. De gedeelde `ADMIN_TOKEN` geeft geen toegang meer.
+User/Admin-rechten komen uit de vaste tenant en toegewezen app-rollen. Bijdragen vereisen
+`requireUser(request)`; auteur en user-ID worden server-side bepaald. Zie
+[`docs/entra-auth.md`](docs/entra-auth.md) voor contractmigratie, sessiegedrag en tests.
 
 <!-- BEGIN:nextjs-agent-rules -->
 

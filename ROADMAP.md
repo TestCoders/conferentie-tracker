@@ -32,6 +32,11 @@ TestingConferences). Hiermee kan elk relevant evenement worden toegevoegd.
 
 ## 2. Inloggen met TestCoders Microsoft-account
 
+**Implementatiekeuze (19 november 2026):** Microsoft Entra ID met de vaste TestCoders-tenant en
+app-rollen `ConferenceTracker.User` / `ConferenceTracker.Admin`. Dit vervangt voor de huidige
+implementatie het later besproken e-mailcode-/SMTP-voorstel. Zie
+[de configuratie-, migratie- en testinstructies](docs/entra-auth.md).
+
 **Wat:** inloggen via Microsoft Entra ID (single sign-on) met het TestCoders-account.
 
 **Waarom:** nu kan iedereen elke naam opgeven en is beheer beveiligd met één gedeeld token. Met

@@ -49,6 +49,8 @@ export type ListResponse<T> = { items: T[] };
 
 export type ErrorResponse = { error: string };
 
+export type AppUser = { id: string; display_name: string; disabled_at: string | null };
+
 /** '-past': historische bronnen, conferenties vanaf 12 maanden geleden. */
 export type DiscoverySource =
   'confs-tech' | 'testing-conferences' | 'confs-tech-past' | 'testing-conferences-past';
@@ -75,6 +77,7 @@ export type ConferencePatch = Partial<Pick<Conference, (typeof ADMIN_EDITABLE_FI
 
 export type Review = {
   id: string;
+  user_id: string | null;
   conference_id: string;
   reviewer_name: string;
   rating: number;
@@ -90,7 +93,6 @@ export type ReviewsResponse = {
 
 export type CreateReviewRequest = {
   conferenceId: string;
-  reviewerName: string;
   rating: number;
   comment?: string | null;
 };
@@ -98,14 +100,15 @@ export type CreateReviewRequest = {
 export const ATTENDANCE_STATUSES = ['interested', 'attended'] as const;
 export type AttendanceStatus = (typeof ATTENDANCE_STATUSES)[number];
 
-/** Iemand die interesse heeft of de conferentie heeft bijgewoond (user-generated, geen login). */
+/** Iemand die interesse heeft of de conferentie heeft bijgewoond (user-generated, accountgebonden of legacy). */
 export type Attendance = {
   id: string;
+  user_id: string | null;
   conference_id: string;
   person_name: string;
   status: AttendanceStatus;
   created_at: string;
-  /** Laatste rating van een review onder dezelfde naam (hoofdletter-ongevoelig), anders null. */
+  /** Rating van hetzelfde account; voor legacyrecords alleen naamkoppeling tussen legacyrecords. */
   rating: number | null;
 };
 
@@ -119,7 +122,6 @@ export type AttendancesResponse = {
 /** POST /api/attendances — rating/comment alleen bij status 'attended'; maakt dan ook een review. */
 export type CreateAttendanceRequest = {
   conferenceId: string;
-  personName: string;
   status: AttendanceStatus;
   rating?: number | null;
   comment?: string | null;
@@ -170,7 +172,7 @@ export type ExperiencePhoto = {
   created_at: string;
 };
 
-/** Verslag van een bezoek, user-generated (geen login). */
+/** Verslag van een bezoek, accountgebonden auteur of oudere anonieme bijdrage. */
 export type Experience = {
   id: string;
   conference_id: string | null;
@@ -197,7 +199,6 @@ export type CreateExperienceRequest = {
   conferenceName?: string | null;
   conferenceDate?: string | null;
   conferenceCity?: string | null;
-  authorName: string;
   title: string;
   summary: string;
   report?: string | null;

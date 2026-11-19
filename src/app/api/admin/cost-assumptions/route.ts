@@ -1,4 +1,4 @@
-// PUT (upsert) en DELETE ?country=… — kostenaannames per land beheren. Admin-token vereist.
+// PUT (upsert) en DELETE ?country=… — kostenaannames per land beheren. Entra-adminrol vereist.
 import { jsonError, requireAdmin } from '@/lib/http';
 import {
   COST_ASSUMPTION_COLUMNS,
@@ -52,7 +52,7 @@ function parseUpsert(body: unknown): { key: string; label: string; travel: numbe
 }
 
 export async function PUT(request: Request) {
-  const denied = requireAdmin(request);
+  const denied = await requireAdmin(request);
   if (denied) return denied;
 
   let input: ReturnType<typeof parseUpsert>;
@@ -87,7 +87,7 @@ export async function PUT(request: Request) {
 }
 
 export async function DELETE(request: Request) {
-  const denied = requireAdmin(request);
+  const denied = await requireAdmin(request);
   if (denied) return denied;
 
   const country = new URL(request.url).searchParams.get('country');

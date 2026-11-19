@@ -85,3 +85,6 @@ alter table public.cost_assumptions enable row level security;
 
 -- Ervaringen en foto's (roadmap #3): zie migrations/20261119_experiences.sql voor de
 -- volledige definitie, inclusief de storage-bucket 'experience-photos'.
+
+-- Microsoft-identiteiten, accountgebonden bijdragen en atomische opslag:
+-- voer migrations/20261119_entra_identity.sql uit ná de ervaringenmigratie.

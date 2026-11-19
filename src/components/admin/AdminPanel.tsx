@@ -1,5 +1,5 @@
 'use client';
-// Eigenaar: D. Token alleen in React state — niet in URL, localStorage of source code.
+// Beheer wordt server-side beschermd door de Microsoft-sessie en Entra-adminrol.
 import { useState } from 'react';
 import { ConferenceRow } from '@/components/admin/ConferenceRow';
 import { CostAssumptionsPanel } from '@/components/admin/CostAssumptionsPanel';
@@ -38,7 +38,6 @@ async function readError(res: Response): Promise<string> {
 }
 
 export function AdminPanel() {
-  const [token, setToken] = useState('');
   const [source, setSource] = useState<DiscoverySource>('confs-tech');
   const [result, setResult] = useState<DiscoveryRunResponse | null>(null);
   const [runError, setRunError] = useState<string | null>(null);
@@ -49,7 +48,7 @@ export function AdminPanel() {
   const [loading, setLoading] = useState(false);
   const [filter, setFilter] = useState<StatusFilter>('all');
 
-  const authHeaders = { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' };
+  const authHeaders = { 'Content-Type': 'application/json' };
 
   async function loadConferences() {
     setLoading(true);
@@ -115,23 +114,6 @@ export function AdminPanel() {
 
   return (
     <div className="space-y-10">
-      <section className={`${CARD} space-y-2`}>
-        <label className={FIELD_LABEL}>
-          --admin-token
-          <input
-            type="password"
-            className={FIELD}
-            value={token}
-            onChange={(e) => setToken(e.target.value)}
-            autoComplete="off"
-            placeholder="Plak hier het ADMIN_TOKEN"
-          />
-        </label>
-        <p className="text-ink-muted text-xs">
-          Het token blijft alleen in deze pagina (React state) en verdwijnt bij herladen.
-        </p>
-      </section>
-
       <section className="space-y-4">
         <div>
           <p className={PROMPT}>$ ./discovery --run</p>
@@ -152,12 +134,7 @@ export function AdminPanel() {
               ))}
             </select>
           </label>
-          <button
-            type="button"
-            className={BTN_PRIMARY}
-            onClick={runDiscovery}
-            disabled={!token || running}
-          >
+          <button type="button" className={BTN_PRIMARY} onClick={runDiscovery} disabled={running}>
             {running ? 'Bezig…' : '▶ Run discovery'}
           </button>
         </div>
@@ -212,7 +189,7 @@ export function AdminPanel() {
             type="button"
             className={BTN_SECONDARY}
             onClick={loadConferences}
-            disabled={!token || loading}
+            disabled={loading}
           >
             {loading ? 'Laden…' : items ? '↻ Vernieuwen' : '↓ Laden'}
           </button>
@@ -259,9 +236,9 @@ export function AdminPanel() {
         )}
       </section>
 
-      <CostAssumptionsPanel token={token} />
+      <CostAssumptionsPanel />
 
-      <ExperiencesModerationPanel token={token} />
+      <ExperiencesModerationPanel />
     </div>
   );
 }
