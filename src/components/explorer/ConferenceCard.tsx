@@ -2,7 +2,8 @@
 import type { ReactNode } from 'react';
 import type { CostEstimate } from '@/lib/costs';
 import type { Conference } from '@/lib/types';
-import { CATEGORY_LABELS, formatDate, formatDateRange, formatLocation } from './format';
+import { CATEGORY_LABELS, formatDate, formatDateRange, formatLocation, isPast } from './format';
+import { PastBadge } from './PastBadge';
 import { CATEGORY_STYLES } from './category-styles';
 import { CostBreakdown, CostValue } from './CostValue';
 import { ConferenceBanner, ConferenceLogo } from './ConferenceImages';
@@ -55,7 +56,10 @@ export function ConferenceCard({
 
       <dl className="mt-3 mb-4 grid grid-cols-[auto_1fr] gap-x-3 gap-y-1 text-sm">
         <dt className={LABEL}>datum</dt>
-        <dd>{formatDateRange(c)}</dd>
+        <dd>
+          {isPast(c) ? <PastBadge /> : null}
+          {formatDateRange(c)}
+        </dd>
         <dt className={LABEL}>locatie</dt>
         <dd>
           <Value text={formatLocation(c)} />

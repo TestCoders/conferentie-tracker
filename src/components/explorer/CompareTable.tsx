@@ -21,7 +21,9 @@ function costRows(costs: Record<string, CostEstimate | null>): Row[] {
       label: 'ticket',
       value: (c) => {
         const t = get(c)?.ticket;
-        return t ? `${formatEuro(t.amount)} (officieel)` : UNKNOWN;
+        return t
+          ? `${formatEuro(t.amount)} (${t.byAi ? 'door AI van de website' : 'officieel'})`
+          : UNKNOWN;
       },
     },
     {

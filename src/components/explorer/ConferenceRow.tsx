@@ -2,7 +2,15 @@
 import type { ReactNode } from 'react';
 import type { CostEstimate } from '@/lib/costs';
 import type { Conference } from '@/lib/types';
-import { CATEGORY_LABELS, dateParts, formatDate, formatDateRange, formatLocation } from './format';
+import {
+  CATEGORY_LABELS,
+  dateParts,
+  formatDate,
+  formatDateRange,
+  formatLocation,
+  isPast,
+} from './format';
+import { PastBadge } from './PastBadge';
 import { CATEGORY_STYLES } from './category-styles';
 import { CostValue } from './CostValue';
 import { ConferenceLogo } from './ConferenceImages';
@@ -58,6 +66,7 @@ export function ConferenceRow({
           </a>
           <p className="text-ink-soft truncate text-sm">
             <span className="sr-only">Datum: </span>
+            {isPast(c) ? <PastBadge /> : null}
             {formatDateRange(c)} · <Value text={formatLocation(c)} />
           </p>
           <p className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 sm:hidden">

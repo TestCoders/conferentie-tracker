@@ -2,6 +2,7 @@
 // Eigenaar: D. Token alleen in React state — niet in URL, localStorage of source code.
 import { useState } from 'react';
 import { ConferenceRow } from '@/components/admin/ConferenceRow';
+import { AiEnrichmentPanel } from '@/components/admin/AiEnrichmentPanel';
 import { CostAssumptionsPanel } from '@/components/admin/CostAssumptionsPanel';
 import { ExperiencesModerationPanel } from '@/components/admin/ExperiencesModerationPanel';
 import {
@@ -258,6 +259,8 @@ export function AdminPanel() {
           </>
         )}
       </section>
+
+      <AiEnrichmentPanel token={token} />
 
       <CostAssumptionsPanel token={token} />
 

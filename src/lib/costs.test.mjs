@@ -72,7 +72,16 @@ test('online-only costs nothing for travel and hotel; unknown location stays unk
 test('official ticket price is added to the total only when known', () => {
   assert.equal(ticketFor({ ticket_price_eur: null, ticket_price_url: null }), null);
   const ticket = ticketFor({ ticket_price_eur: 499, ticket_price_url: 'https://example.com/t' });
-  assert.deepEqual(ticket, { amount: 499, sourceUrl: 'https://example.com/t' });
+  assert.deepEqual(ticket, { amount: 499, sourceUrl: 'https://example.com/t', byAi: false });
+  // Door de AI-verrijking gevonden ticketprijs wordt zo gemarkeerd.
+  assert.equal(
+    ticketFor({
+      ticket_price_eur: 499,
+      ticket_price_url: 'https://example.com/t',
+      ai_fields: ['ticket_price_eur', 'ticket_price_url'],
+    }).byAi,
+    true,
+  );
   assert.equal(estimateCosts(conference, map, ticket).total, 350 + 499);
 });
 

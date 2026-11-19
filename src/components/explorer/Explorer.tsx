@@ -17,11 +17,26 @@ import { CompareTable } from './CompareTable';
 import { ConferenceCard } from './ConferenceCard';
 import { ConferenceCommunity } from './ConferenceCommunity';
 import { ConferenceRow } from './ConferenceRow';
-import { CATEGORY_LABELS } from './format';
+import { addMonths } from './calendar';
+import { CATEGORY_LABELS, isPast, todayIso } from './format';
 
 const MAX_COMPARE = 2;
 
 type SortOrder = 'asc' | 'desc' | 'cost';
+type Period = 'upcoming' | 'past12' | 'all';
+
+const PERIOD_LABELS: Record<Period, string> = {
+  upcoming: 'Aankomend',
+  past12: 'Afgelopen 12 maanden',
+  all: 'Alles',
+};
+
+/** 'YYYY-MM-DD' van 12 maanden geleden. */
+function cutoff12(today: string): string {
+  const d = new Date(`${today}T00:00:00Z`);
+  d.setUTCFullYear(d.getUTCFullYear() - 1);
+  return d.toISOString().slice(0, 10);
+}
 type ViewMode = 'list' | 'cards' | 'agenda';
 
 const VIEW_LABELS: Record<ViewMode, string> = {
@@ -40,6 +55,8 @@ export function Explorer() {
   const [query, setQuery] = useState('');
   const [category, setCategory] = useState<Category | 'all'>('all');
   const [sortOrder, setSortOrder] = useState<SortOrder>('asc');
+  const [period, setPeriod] = useState<Period>('upcoming');
+  const [year, setYear] = useState('all');
   const [view, setView] = useState<ViewMode>('list');
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
   const [expandedId, setExpandedId] = useState<string | null>(null);
@@ -108,7 +125,8 @@ export function Explorer() {
 
   useEffect(() => {
     const controller = new AbortController();
-    fetch('/api/conferences', { signal: controller.signal })
+    // Alles in één keer (enkele honderden records); periode en jaar filteren we lokaal.
+    fetch('/api/conferences?period=all', { signal: controller.signal })
       .then(async (res) => {
         if (!res.ok) throw new Error(`HTTP ${res.status}`);
         const data = (await res.json()) as ListResponse<Conference>;
@@ -121,14 +139,61 @@ export function Explorer() {
     return () => controller.abort();
   }, []);
 
-  const visible = useMemo(() => {
+  // Pas na het laden (in de browser): new Date() mag niet tijdens het voorrenderen.
+  const today = items ? todayIso() : '';
+
+  const years = useMemo(
+    () =>
+      [...new Set((items ?? []).map((c) => c.start_date.slice(0, 4)))].sort((a, b) =>
+        b.localeCompare(a),
+      ),
+    [items],
+  );
+
+  /** Conferenties binnen de gekozen periode en het gekozen jaar (basis voor de overige filters). */
+  const inPeriod = useMemo(() => {
     if (!items) return [];
+    const since = cutoff12(today);
+    return items.filter((c) => {
+      if (year !== 'all' && !c.start_date.startsWith(year)) return false;
+      if (period === 'upcoming') return !isPast(c, today);
+      if (period === 'past12') return isPast(c, today) && c.start_date >= since;
+      return true;
+    });
+  }, [items, period, year, today]);
+
+  function choosePeriod(next: Period) {
+    setPeriod(next);
+    // Afgelopen conferenties: recentste eerst is logischer.
+    if (sortOrder !== 'cost') setSortOrder(next === 'past12' ? 'desc' : 'asc');
+  }
+
+  /** Maandbereik voor de agenda, passend bij periode/jaar. */
+  const agendaRange = useMemo(() => {
+    const thisMonth = today.slice(0, 7);
+    if (year !== 'all') return { start: `${year}-01`, months: 12 };
+    if (period === 'upcoming') return { start: thisMonth, months: 12 };
+    if (period === 'past12') return { start: addMonths(thisMonth, -11), months: 12 };
+    const first = inPeriod
+      .reduce((m, c) => (c.start_date < m ? c.start_date : m), today)
+      .slice(0, 7);
+    const last = inPeriod
+      .reduce((m, c) => (c.start_date > m ? c.start_date : m), today)
+      .slice(0, 7);
+    const span =
+      (Number(last.slice(0, 4)) - Number(first.slice(0, 4))) * 12 +
+      (Number(last.slice(5, 7)) - Number(first.slice(5, 7))) +
+      1;
+    return { start: first, months: Math.min(24, Math.max(12, span)) };
+  }, [period, year, inPeriod, today]);
+
+  const visible = useMemo(() => {
     const q = query.trim().toLowerCase();
     const max = Number(budget);
     const budgetActive = costs !== undefined && budget !== '' && Number.isFinite(max) && max >= 0;
     const totalOf = (c: Conference) => costs?.[c.id]?.total ?? null;
 
-    const filtered = items.filter((c) => {
+    const filtered = inPeriod.filter((c) => {
       if (category !== 'all' && c.category !== category) return false;
       if (q !== '' && !c.name.toLowerCase().includes(q)) return false;
       if (!budgetActive) return true;
@@ -149,7 +214,7 @@ export function Explorer() {
       // 'YYYY-MM-DD' sorteert lexicografisch correct.
       return a.start_date.localeCompare(b.start_date) * direction;
     });
-  }, [items, query, category, sortOrder, budget, hideUnknownCost, costs]);
+  }, [inPeriod, query, category, sortOrder, budget, hideUnknownCost, costs]);
 
   const unknownCostVisible =
     costs !== undefined && budget !== '' ? visible.filter((c) => !costs[c.id]).length : 0;
@@ -183,7 +248,7 @@ export function Explorer() {
   if (items.length === 0) return <p>Nog geen conferenties. Start een import via /admin.</p>;
 
   const counts = CATEGORIES.reduce<Record<Category, number>>(
-    (acc, cat) => ({ ...acc, [cat]: items.filter((c) => c.category === cat).length }),
+    (acc, cat) => ({ ...acc, [cat]: inPeriod.filter((c) => c.category === cat).length }),
     { development: 0, testing: 0, 'test-automation': 0 },
   );
 
@@ -211,13 +276,38 @@ export function Explorer() {
             />
           </label>
           <label className={FIELD_LABEL}>
+            --periode
+            <select
+              value={period}
+              onChange={(e) => choosePeriod(e.target.value as Period)}
+              className={FIELD}
+            >
+              {(Object.keys(PERIOD_LABELS) as Period[]).map((p) => (
+                <option key={p} value={p}>
+                  {PERIOD_LABELS[p]}
+                </option>
+              ))}
+            </select>
+          </label>
+          <label className={FIELD_LABEL}>
+            --jaar
+            <select value={year} onChange={(e) => setYear(e.target.value)} className={FIELD}>
+              <option value="all">Alle jaren</option>
+              {years.map((y) => (
+                <option key={y} value={y}>
+                  {y}
+                </option>
+              ))}
+            </select>
+          </label>
+          <label className={FIELD_LABEL}>
             --categorie
             <select
               value={category}
               onChange={(e) => setCategory(e.target.value as Category | 'all')}
               className={FIELD}
             >
-              <option value="all">Alle ({items.length})</option>
+              <option value="all">Alle ({inPeriod.length})</option>
               {CATEGORIES.map((cat) => (
                 <option key={cat} value={cat}>
                   {CATEGORY_LABELS[cat]} ({counts[cat]})
@@ -233,7 +323,7 @@ export function Explorer() {
                 onChange={(e) => setSortOrder(e.target.value as SortOrder)}
                 className={FIELD}
               >
-                <option value="asc">Eerstvolgende eerst</option>
+                <option value="asc">Vroegste eerst</option>
                 <option value="desc">Laatste eerst</option>
                 {costs ? <option value="cost">Goedkoopste eerst</option> : null}
               </select>
@@ -286,7 +376,9 @@ export function Explorer() {
           </div>
         </div>
         <p className="text-ink-muted mt-2 font-mono text-xs" aria-live="polite">
-          <span className="text-adopt">✓</span> {visible.length} van {items.length} conferenties
+          <span className="text-adopt">✓</span> {visible.length} van {inPeriod.length} conferenties
+          · {PERIOD_LABELS[period].toLowerCase()}
+          {year !== 'all' ? ` · ${year}` : ''}
           {selected.length === 1 ? ' · selecteer nog 1 om te vergelijken' : ''}
         </p>
         {costs && budget !== '' ? (
@@ -320,9 +412,13 @@ export function Explorer() {
       </div>
 
       {visible.length === 0 ? (
-        <p>Geen conferenties gevonden voor deze zoekopdracht.</p>
+        <p>
+          {inPeriod.length === 0
+            ? 'Geen conferenties in deze periode. Kies een andere periode of een ander jaar.'
+            : 'Geen conferenties gevonden voor deze zoekopdracht.'}
+        </p>
       ) : view === 'agenda' ? (
-        <AgendaView conferences={visible} />
+        <AgendaView conferences={visible} range={agendaRange} />
       ) : view === 'list' ? (
         <ul className="divide-hairline border-hairline bg-surface divide-y overflow-hidden rounded-md border">
           {visible.map((c) => {

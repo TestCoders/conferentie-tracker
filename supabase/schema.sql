@@ -89,3 +89,6 @@ alter table public.cost_assumptions enable row level security;
 
 -- Ervaringen en foto's (roadmap #3): zie migrations/20261119_experiences.sql voor de
 -- volledige definitie, inclusief de storage-bucket 'experience-photos'.
+
+-- AI-verrijking: zie migrations/20261119_ai_enrichment.sql (conferences.ai_checked_at,
+-- conferences.ai_fields, cost_assumptions.source en cost_assumptions.note).
