@@ -1,0 +1,110 @@
+/**
+ * Kostenschatting per conferentie (roadmap #4). Pure functies, bruikbaar op server en client.
+ *
+ * Berekening (navolgbaar, geen verzonnen bedragen):
+ *   reis    = aanname voor het land (retour vanuit NL, per persoon)
+ *   hotel   = aanname per nacht × aantal nachten
+ *   nachten = aantal conferentiedagen (aankomst de avond ervoor, vertrek na de laatste dag)
+ *   ticket  = officiële prijs als die bekend is, anders niet meegeteld
+ * Zonder land of zonder aanname voor dat land: geen reis/hotel-schatting (Onbekend).
+ *
+ * AANSLUITPUNT ROADMAP #1 (AI-koppeling): zodra een officiële ticketprijs beschikbaar is,
+ * geef die mee als `ticket` aan `estimateCosts`. De UI telt hem dan automatisch mee in het
+ * totaal en toont de bron. Ook een door #1 aangevuld `country` levert vanzelf een schatting op.
+ * Waar de prijs wordt opgeslagen, bepaalt #1; koppel het in `ticketFor` hieronder.
+ */
+import type { Conference, CostAssumption } from '@/lib/types';
+
+export const COST_ASSUMPTION_COLUMNS =
+  'country_key,country_label,travel_eur,hotel_per_night_eur,updated_at';
+
+/** Varianten uit de bronnen die hetzelfde land bedoelen. */
+const COUNTRY_ALIASES: Record<string, string> = {
+  us: 'usa',
+  'united states': 'usa',
+  'united states of america': 'usa',
+  'united kingdom': 'uk',
+  'great britain': 'uk',
+  england: 'uk',
+  holland: 'netherlands',
+  nederland: 'netherlands',
+  deutschland: 'germany',
+};
+
+/** 'U.S.A.' → 'usa', 'the Netherlands' → 'netherlands', 'U.K.' → 'uk'. Leeg → null. */
+export function countryKey(country: string | null | undefined): string | null {
+  if (!country) return null;
+  const key = country
+    .toLowerCase()
+    .replace(/\./g, '')
+    .replace(/^the\s+/, '')
+    .replace(/\s+/g, ' ')
+    .trim();
+  if (!key) return null;
+  return COUNTRY_ALIASES[key] ?? key;
+}
+
+export function conferenceDays(c: Pick<Conference, 'start_date' | 'end_date'>): number {
+  const start = Date.parse(`${c.start_date}T00:00:00Z`);
+  const end = c.end_date ? Date.parse(`${c.end_date}T00:00:00Z`) : start;
+  if (!Number.isFinite(start) || !Number.isFinite(end) || end < start) return 1;
+  return Math.round((end - start) / 86_400_000) + 1;
+}
+
+/** Officiële ticketprijs (per persoon, hele euro's) met bron. */
+export type TicketPrice = { amount: number; sourceUrl: string | null };
+
+/**
+ * Officiële ticketprijs van een conferentie. Nu altijd null: geen bron levert prijzen.
+ * Roadmap #1 koppelt hier het veld dat de AI-koppeling vult.
+ */
+export function ticketFor(c: Conference): TicketPrice | null {
+  void c;
+  return null;
+}
+
+export type CostEstimate = {
+  countryLabel: string;
+  travel: number;
+  hotelPerNight: number;
+  nights: number;
+  hotel: number;
+  ticket: TicketPrice | null;
+  /** Reis + hotel (+ ticket als bekend). */
+  total: number;
+};
+
+export function assumptionMap(items: CostAssumption[]): Map<string, CostAssumption> {
+  return new Map(items.map((a) => [a.country_key, a]));
+}
+
+export function estimateCosts(
+  c: Pick<Conference, 'country' | 'start_date' | 'end_date'>,
+  assumptions: Map<string, CostAssumption>,
+  ticket: TicketPrice | null = null,
+): CostEstimate | null {
+  const key = countryKey(c.country);
+  const a = key ? assumptions.get(key) : undefined;
+  if (!a) return null;
+  const nights = conferenceDays(c);
+  const hotel = a.hotel_per_night_eur * nights;
+  return {
+    countryLabel: a.country_label,
+    travel: a.travel_eur,
+    hotelPerNight: a.hotel_per_night_eur,
+    nights,
+    hotel,
+    ticket,
+    total: a.travel_eur + hotel + (ticket?.amount ?? 0),
+  };
+}
+
+const euro = new Intl.NumberFormat('nl-NL', {
+  style: 'currency',
+  currency: 'EUR',
+  maximumFractionDigits: 0,
+});
+
+export function formatEuro(amount: number): string {
+  return euro.format(amount);
+}

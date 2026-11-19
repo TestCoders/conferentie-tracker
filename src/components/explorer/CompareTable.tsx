@@ -1,7 +1,53 @@
 // Eigenaar: C. Twee conferenties naast elkaar; ontbrekende velden tonen 'Onbekend'.
+import { formatEuro, type CostEstimate } from '@/lib/costs';
 import type { CommunityStats, Conference } from '@/lib/types';
-import { CATEGORY_LABELS, formatDate, formatDateRange, formatLocation, orUnknown } from './format';
+import {
+  CATEGORY_LABELS,
+  UNKNOWN,
+  formatDate,
+  formatDateRange,
+  formatLocation,
+  orUnknown,
+} from './format';
 import { Value } from './Value';
+
+/** Vervangt de rij 'prijs' door ticket, reis, hotel en totaal (schatting). */
+function costRows(costs: Record<string, CostEstimate | null>): Row[] {
+  const get = (c: Conference) => costs[c.id] ?? null;
+  return [
+    {
+      label: 'ticket',
+      value: (c) => {
+        const t = get(c)?.ticket;
+        return t ? `${formatEuro(t.amount)} (officieel)` : UNKNOWN;
+      },
+    },
+    {
+      label: 'reis',
+      value: (c) => {
+        const e = get(c);
+        return e ? `${formatEuro(e.travel)} (aanname ${e.countryLabel})` : UNKNOWN;
+      },
+    },
+    {
+      label: 'hotel',
+      value: (c) => {
+        const e = get(c);
+        return e
+          ? `${formatEuro(e.hotel)} (${e.nights} × ${formatEuro(e.hotelPerNight)})`
+          : UNKNOWN;
+      },
+    },
+    {
+      label: 'totaal (schatting)',
+      value: (c) => {
+        const e = get(c);
+        if (!e) return UNKNOWN;
+        return `~${formatEuro(e.total)}${e.ticket ? '' : ' excl. ticket'}`;
+      },
+    },
+  ];
+}
 
 function communityRows(stats: Record<string, CommunityStats>): Row[] {
   const get = (c: Conference) => stats[c.id];
@@ -36,10 +82,13 @@ type Props = {
   onClear: () => void;
   /** Community-tellingen per conference_id; ontbreekt bij laadfout. */
   stats?: Record<string, CommunityStats>;
+  /** Kostenschattingen per conference_id; ontbreekt als aannames niet beschikbaar zijn. */
+  costs?: Record<string, CostEstimate | null>;
 };
 
-export function CompareTable({ conferences, onClear, stats }: Props) {
-  const rows = stats ? [...ROWS, ...communityRows(stats)] : ROWS;
+export function CompareTable({ conferences, onClear, stats, costs }: Props) {
+  const base = costs ? ROWS.flatMap((r) => (r.label === 'prijs' ? costRows(costs) : [r])) : ROWS;
+  const rows = stats ? [...base, ...communityRows(stats)] : base;
   return (
     <section
       aria-labelledby="compare-heading"
