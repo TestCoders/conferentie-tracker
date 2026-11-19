@@ -1,15 +1,16 @@
 'use client';
 import { signOut, useSession } from 'next-auth/react';
-import Link from 'next/link';
+import { Suspense } from 'react';
+import { MicrosoftSignInButton } from '@/components/auth/MicrosoftSignInButton';
 
 export function AuthControls() {
   const { data: session, status } = useSession();
   if (status === 'loading') return <span className="text-ink-muted text-xs">Account laden…</span>;
   if (!session)
     return (
-      <Link href="/login" className="text-signal text-xs font-semibold hover:underline">
-        Inloggen met Microsoft
-      </Link>
+      <Suspense fallback={null}>
+        <MicrosoftSignInButton size="sm" />
+      </Suspense>
     );
   return (
     <div className="flex items-center gap-2 text-xs">
