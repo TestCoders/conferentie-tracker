@@ -1,5 +1,6 @@
 // Eigenaar: B. Adapter voor de live JSON-feed van confs.tech.
 import type { ConferenceInput } from '@/lib/types';
+import { loadFixedSource, type FetchResult, type SourceLoader } from '@/lib/discovery/fetch-source';
 import { normalizeUrl } from '@/lib/discovery/normalize-url';
 import { readText as text, readDate as date, readUrl as url } from '@/lib/discovery/validation';
 import { pastCutoff } from '@/lib/discovery/past-window';
@@ -17,7 +18,11 @@ export const CONFS_TECH_PAST_SOURCES = [
   'https://raw.githubusercontent.com/tech-conferences/conference-data/main/conferences/2025/devops.json',
 ] as const;
 
-export function parseConfsTechRecord(value: unknown, sourceUrl: string): ConferenceInput {
+export function parseConfsTechRecord(
+  value: unknown,
+  sourceUrl: string,
+  sourceName = 'confs-tech',
+): ConferenceInput {
   if (typeof value !== 'object' || value === null || Array.isArray(value)) {
     throw new Error('Record moet een object zijn');
   }
@@ -39,7 +44,7 @@ export function parseConfsTechRecord(value: unknown, sourceUrl: string): Confere
     name,
     official_url: officialUrl,
     canonical_url: normalizeUrl(officialUrl),
-    source_name: 'confs-tech',
+    source_name: sourceName,
     source_url: sourceUrl,
     start_date: startDate,
     end_date: endDate,
@@ -52,6 +57,8 @@ export function parseConfsTechRecord(value: unknown, sourceUrl: string): Confere
     price_text: null,
   };
 }
+
+type FeedOptions = { sourceName?: string; load?: SourceLoader };
 
 /** Alleen deze vaste bronnen ophalen; fouten per bron/record rapporteren. */
 export async function fetchConfsTech(): Promise<{ items: ConferenceInput[]; errors: string[] }> {
@@ -72,27 +79,31 @@ export async function fetchConfsTechPast(
   });
 }
 
+/** Eén feed in confs.tech-formaat, bijv. een door een beheerder toegevoegde bron. */
+export function fetchConfsTechFeed(
+  sourceUrl: string,
+  sourceName: string,
+  load: SourceLoader = loadFixedSource,
+): Promise<FetchResult> {
+  return fetchConfsTechFeeds([sourceUrl], undefined, { sourceName, load });
+}
+
 async function fetchConfsTechFeeds(
   sources: readonly string[],
   keep: (record: unknown) => boolean = () => true,
-): Promise<{ items: ConferenceInput[]; errors: string[] }> {
+  { sourceName = 'confs-tech', load = loadFixedSource }: FeedOptions = {},
+): Promise<FetchResult> {
   const results = await Promise.all(
     sources.map(async (sourceUrl) => {
       const items: ConferenceInput[] = [];
       const errors: string[] = [];
       try {
-        const response = await fetch(sourceUrl, {
-          cache: 'no-store',
-          redirect: 'error',
-          signal: AbortSignal.timeout(15_000),
-        });
-        if (!response.ok) throw new Error(`HTTP ${response.status}`);
-        const data: unknown = await response.json();
+        const data: unknown = JSON.parse(await load(sourceUrl));
         if (!Array.isArray(data)) throw new Error('Bron bevat geen JSON-array');
         for (const [index, record] of data.entries()) {
           if (!keep(record)) continue;
           try {
-            items.push(parseConfsTechRecord(record, sourceUrl));
+            items.push(parseConfsTechRecord(record, sourceUrl, sourceName));
           } catch (error) {
             errors.push(
               `${sourceUrl}, record ${index + 1}: ${error instanceof Error ? error.message : 'Ongeldig record'}`,

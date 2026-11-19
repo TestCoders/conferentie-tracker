@@ -80,17 +80,70 @@ export type ListResponse<T> = { items: T[] };
 export type ErrorResponse = { error: string };
 
 /** '-past': historische bronnen, conferenties vanaf 12 maanden geleden. */
-export type DiscoverySource =
-  'confs-tech' | 'testing-conferences' | 'confs-tech-past' | 'testing-conferences-past';
+export const DISCOVERY_SOURCES = [
+  'confs-tech',
+  'testing-conferences',
+  'confs-tech-past',
+  'testing-conferences-past',
+] as const;
+/** Vaste, ingebouwde bronnen. */
+export type DiscoverySource = (typeof DISCOVERY_SOURCES)[number];
+
+/**
+ * Feedformaat van een handmatig toegevoegde bron. Bepaalt welke bestaande parser
+ * (confs.tech of TestingConferences) de feed verwerkt.
+ */
+export const CUSTOM_SOURCE_FORMATS = ['confs-tech-json', 'testing-conferences-yaml'] as const;
+export type CustomSourceFormat = (typeof CUSTOM_SOURCE_FORMATS)[number];
+
+/** Door een beheerder toegevoegde bron (tabel discovery_sources). */
+export type CustomDiscoverySource = {
+  id: string;
+  /** Uniek label; wordt ook conferences.source_name en ingestion_runs.source_name. */
+  name: string;
+  url: string;
+  format: CustomSourceFormat;
+  created_at: string;
+};
+
+/** POST /api/admin/sources */
+export type CreateCustomSourceRequest = {
+  name: string;
+  url: string;
+  format: CustomSourceFormat;
+};
+
+/** POST /api/discovery/run — óf een vaste bron, óf het id van een eigen bron. */
+export type DiscoveryRunRequest = { source?: DiscoverySource } | { sourceId: string };
 
 export type DiscoveryRunResponse = {
-  source: DiscoverySource;
+  /** Vaste bron-key, of de naam van een eigen bron. */
+  source: string;
   found: number;
   inserted: number;
   updated: number;
   errors: string[];
   /** Websites bekeken op logo/afbeelding in deze run; ontbreekt als die stap niet draaide. */
   images?: { checked: number; found: number };
+  /** Alleen bij eigen bronnen: in hoeverre de kostenschatting voor deze records werkt. */
+  costCoverage?: CostCoverage;
+};
+
+/**
+ * Dekking van de kostenschatting (src/lib/costs.ts) voor de records van één discovery-run.
+ * Feeds bevatten geen ticketprijzen; die komen via de AI-verrijking of een beheerder.
+ */
+export type CostCoverage = {
+  /** Records met een schatting voor reis + hotel (eigen land, standaardaanname of online). */
+  withEstimate: number;
+  /** Waarvan online-only (reis en hotel € 0). */
+  online: number;
+  /** Landen zonder eigen aanname die op de standaardaanname terugvallen. */
+  onDefault: string[];
+  /** Landen zonder eigen aanname terwijl er ook geen standaardaanname is: Onbekend. */
+  missingCountries: string[];
+  /** Records zonder bekende locatie (TBA): Onbekend. */
+  withoutLocation: number;
 };
 
 /** Velden die via PATCH /api/admin/conferences/:id aangepast mogen worden. */
