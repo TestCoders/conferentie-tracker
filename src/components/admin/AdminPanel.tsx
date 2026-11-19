@@ -3,6 +3,7 @@
 import { useState } from 'react';
 import { ConferenceRow } from '@/components/admin/ConferenceRow';
 import { CostAssumptionsPanel } from '@/components/admin/CostAssumptionsPanel';
+import { ExperiencesModerationPanel } from '@/components/admin/ExperiencesModerationPanel';
 import {
   BTN_PRIMARY,
   BTN_SECONDARY,
@@ -257,6 +258,8 @@ export function AdminPanel() {
       </section>
 
       <CostAssumptionsPanel token={token} />
+
+      <ExperiencesModerationPanel token={token} />
     </div>
   );
 }
