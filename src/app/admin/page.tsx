@@ -6,7 +6,7 @@ import { redirect } from 'next/navigation';
 
 async function AdminContent() {
   const session = await auth();
-  if (!session) redirect('/login');
+  if (!session) redirect('/login?callbackUrl=/admin');
   if (!session.user.isAdmin) return <p role="alert">Beheerrechten vereist.</p>;
   return <AdminPanel />;
 }
