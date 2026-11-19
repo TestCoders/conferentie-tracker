@@ -40,7 +40,7 @@ export function ConferenceRow({
 
   return (
     <div
-      className={`grid grid-cols-[3.5rem_1fr_auto] items-center gap-x-4 gap-y-2 px-4 py-3 transition-colors sm:grid-cols-[3.5rem_minmax(0,1fr)_9rem_8rem_auto] ${
+      className={`grid grid-cols-[3.5rem_1fr_auto] items-center gap-x-4 gap-y-2 px-4 py-3 transition-colors sm:grid-cols-[3.5rem_minmax(0,1fr)_8.5rem_9.5rem_8rem] lg:grid-cols-[3.5rem_minmax(0,1fr)_9rem_10.5rem_14rem] ${
         selected ? 'bg-signal-glow/60' : 'hover:bg-glass/60'
       }`}
     >
@@ -87,15 +87,15 @@ export function ConferenceRow({
         </div>
       </div>
 
-      <div className="hidden sm:block">
+      <div className="hidden min-w-0 sm:block">
         <span
-          className={`rounded px-2 py-0.5 font-mono text-[11px] font-semibold ${CATEGORY_STYLES[c.category]}`}
+          className={`rounded px-2 py-0.5 font-mono text-[11px] font-semibold whitespace-nowrap ${CATEGORY_STYLES[c.category]}`}
         >
           {CATEGORY_LABELS[c.category]}
         </span>
       </div>
 
-      <div className="hidden text-sm sm:block">
+      <div className="hidden min-w-0 text-sm sm:block">
         <span className="text-ink-muted block font-mono text-[10px] uppercase">cfp</span>
         {c.cfp_url ? (
           <a
@@ -119,7 +119,8 @@ export function ConferenceRow({
         ) : null}
       </div>
 
-      <div className="flex flex-col items-end gap-2 sm:flex-row sm:items-center sm:gap-3">
+      {/* Vaste kolom, rechts uitgelijnd: knop en vinkje staan in elke rij op dezelfde plek. */}
+      <div className="flex flex-col items-end gap-2 sm:flex-row sm:items-center sm:justify-end sm:gap-3">
         {community}
         <label
           htmlFor={checkboxId}
@@ -135,8 +136,8 @@ export function ConferenceRow({
             disabled={selectDisabled}
             onChange={() => onToggleSelect(c.id)}
           />
-          <span className="hidden md:inline">vergelijk</span>
-          <span className="sr-only md:hidden">Vergelijk {c.name}</span>
+          <span className="hidden lg:inline">vergelijk</span>
+          <span className="sr-only lg:hidden">Vergelijk {c.name}</span>
         </label>
       </div>
     </div>

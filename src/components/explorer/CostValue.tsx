@@ -49,7 +49,7 @@ export function CostValue({ estimate }: { estimate: CostEstimate | null }) {
   if (!estimate) return <span className="text-ink-muted italic">{UNKNOWN}</span>;
   const explanation = costExplanation(estimate);
   return (
-    <span title={explanation}>
+    <span title={explanation} className="whitespace-nowrap">
       <span className="font-semibold">~{formatEuro(estimate.total)}</span>
       {estimate.ticket ? null : (
         <span className="text-ink-muted ml-1 font-mono text-[10px]">excl. ticket</span>
