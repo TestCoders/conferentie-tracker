@@ -32,15 +32,37 @@ export type Conference = {
   ticket_price_eur: number | null;
   /** Bron van de ticketprijs (https). */
   ticket_price_url: string | null;
+  /** Laatste keer dat de AI-verrijking deze conferentie controleerde. */
+  ai_checked_at: string | null;
+  /** Velden die door de AI-verrijking zijn ingevuld (bijv. 'ticket_price_eur', 'country'). */
+  ai_fields: AiField[];
   status: ConferenceStatus;
   last_checked_at: string;
 };
 
+/** Velden die de AI-verrijking mag invullen. */
+export const AI_FIELDS = [
+  'city',
+  'country',
+  'online_only',
+  'ticket_price_eur',
+  'ticket_price_url',
+  'cfp_deadline',
+  'cfp_url',
+] as const;
+export type AiField = (typeof AI_FIELDS)[number];
+
 /** Rij zoals de discovery-engine hem aanlevert voor een upsert (zonder DB-velden). */
-/** Zonder ticketvelden: die beheert een beheerder en mag een herimport niet overschrijven. */
+/** Zonder ticket- en AI-velden: een herimport mag die niet overschrijven. */
 export type ConferenceInput = Omit<
   Conference,
-  'id' | 'status' | 'last_checked_at' | 'ticket_price_eur' | 'ticket_price_url'
+  | 'id'
+  | 'status'
+  | 'last_checked_at'
+  | 'ticket_price_eur'
+  | 'ticket_price_url'
+  | 'ai_checked_at'
+  | 'ai_fields'
 > & {
   status?: ConferenceStatus;
 };
@@ -144,6 +166,35 @@ export type CostAssumption = {
   travel_eur: number;
   hotel_per_night_eur: number;
   updated_at: string;
+  /** 'admin' = door een beheerder ingevuld, 'ai' = ruwe AI-schatting (zie updated_at). */
+  source: 'admin' | 'ai';
+  /** Korte toelichting bij een AI-schatting. */
+  note: string | null;
+};
+
+/* ---------- AI-verrijking ---------- */
+
+export const ENRICH_TARGETS = ['costs', 'conferences'] as const;
+export type EnrichTarget = (typeof ENRICH_TARGETS)[number];
+
+/** POST /api/admin/enrich */
+export type EnrichRequest = {
+  target: EnrichTarget;
+  /** Alleen bij 'conferences': aantal conferenties per run (1–12, standaard 6). */
+  limit?: number;
+};
+
+export type EnrichResponse = {
+  target: EnrichTarget;
+  /** Het model dat OpenRouter daadwerkelijk gebruikte. */
+  model: string | null;
+  /** Aantal AI-verzoeken (tellen mee voor de dagelijkse limiet van gratis modellen). */
+  requests: number;
+  processed: number;
+  updated: number;
+  /** Alleen bij 'conferences': nog nooit door de AI gecontroleerde conferenties. */
+  remaining: number | null;
+  errors: string[];
 };
 
 /** PUT /api/admin/cost-assumptions — upsert op genormaliseerd land. */
@@ -220,4 +271,4 @@ export type ExperienceConference = Pick<
 
 /** Kolommen die we teruggeven als Conference (geen created_at/updated_at). */
 export const CONFERENCE_COLUMNS =
-  'id,name,official_url,canonical_url,source_name,source_url,start_date,end_date,city,country,category,cfp_url,cfp_deadline,price_text,online_only,ticket_price_eur,ticket_price_url,status,last_checked_at';
+  'id,name,official_url,canonical_url,source_name,source_url,start_date,end_date,city,country,category,cfp_url,cfp_deadline,price_text,online_only,ticket_price_eur,ticket_price_url,ai_checked_at,ai_fields,status,last_checked_at';
