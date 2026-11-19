@@ -15,7 +15,7 @@
 import type { Conference, CostAssumption } from '@/lib/types';
 
 export const COST_ASSUMPTION_COLUMNS =
-  'country_key,country_label,travel_eur,hotel_per_night_eur,updated_at';
+  'country_key,country_label,travel_eur,hotel_per_night_eur,updated_at,source,note';
 
 /** country_key van de standaardaanname voor landen zonder eigen aanname. */
 export const DEFAULT_COST_COUNTRY_KEY = '*';
@@ -54,15 +54,21 @@ export function conferenceDays(c: Pick<Conference, 'start_date' | 'end_date'>): 
   return Math.round((end - start) / 86_400_000) + 1;
 }
 
-/** Officiële ticketprijs (per persoon, hele euro's) met bron. */
-export type TicketPrice = { amount: number; sourceUrl: string | null };
+/** Officiële ticketprijs (per persoon, hele euro's) met bron; byAi = door de AI van de website gehaald. */
+export type TicketPrice = { amount: number; sourceUrl: string | null; byAi?: boolean };
 
 /** Officiële ticketprijs van een conferentie, of null als die (nog) onbekend is. */
 export function ticketFor(
-  c: Pick<Conference, 'ticket_price_eur' | 'ticket_price_url'>,
+  c: Pick<Conference, 'ticket_price_eur' | 'ticket_price_url'> & {
+    ai_fields?: Conference['ai_fields'];
+  },
 ): TicketPrice | null {
   if (c.ticket_price_eur === null) return null;
-  return { amount: c.ticket_price_eur, sourceUrl: c.ticket_price_url };
+  return {
+    amount: c.ticket_price_eur,
+    sourceUrl: c.ticket_price_url,
+    byAi: c.ai_fields?.includes('ticket_price_eur') ?? false,
+  };
 }
 
 /** Waar reis/hotel op gebaseerd zijn. */
@@ -70,6 +76,10 @@ export type CostBasis = 'country' | 'default' | 'online';
 
 export type CostEstimate = {
   basis: CostBasis;
+  /** Herkomst van de gebruikte aanname: beheerder of AI-schatting (null bij online). */
+  assumptionSource: CostAssumption['source'] | null;
+  /** Datum van de gebruikte aanname (YYYY-MM-DD), voor "AI-schatting · datum". */
+  assumptionDate: string | null;
   countryLabel: string;
   travel: number;
   hotelPerNight: number;
@@ -92,6 +102,8 @@ export function estimateCosts(
   if (c.online_only) {
     return {
       basis: 'online',
+      assumptionSource: null,
+      assumptionDate: null,
       countryLabel: 'online',
       travel: 0,
       hotelPerNight: 0,
@@ -110,6 +122,8 @@ export function estimateCosts(
   const hotel = a.hotel_per_night_eur * nights;
   return {
     basis: own ? 'country' : 'default',
+    assumptionSource: a.source ?? 'admin',
+    assumptionDate: a.updated_at ? a.updated_at.slice(0, 10) : null,
     countryLabel: own ? a.country_label : DEFAULT_COST_LABEL,
     travel: a.travel_eur,
     hotelPerNight: a.hotel_per_night_eur,

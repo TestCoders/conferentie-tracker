@@ -74,6 +74,9 @@ export async function PUT(request: Request) {
           travel_eur: input.travel,
           hotel_per_night_eur: input.hotel,
           updated_at: new Date().toISOString(),
+          // Handmatig aangepast: geen AI-schatting meer (tot de volgende AI-run, die alles ververst).
+          source: 'admin',
+          note: null,
         },
         { onConflict: 'country_key' },
       )

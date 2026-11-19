@@ -23,6 +23,10 @@ create table if not exists public.conferences (
   ticket_price_eur integer check (ticket_price_eur between 0 and 20000),
   ticket_price_url text
     check (ticket_price_url like 'https://%' and char_length(ticket_price_url) <= 2000),
+  -- Van de officiële website (og:image / icon); zie migrations/20261119_conference_images.sql.
+  image_url text,
+  icon_url text,
+  images_checked_at timestamptz,
   status text not null default 'approved'
     check (status in ('pending', 'approved', 'rejected')),
   last_checked_at timestamptz not null default now(),
@@ -75,6 +79,24 @@ create table if not exists public.cost_assumptions (
   updated_at timestamptz not null default now()
 );
 
+-- Handmatig toegevoegde discoverybronnen (zie ook migrations/20261119_discovery_sources.sql).
+create table if not exists public.discovery_sources (
+  id uuid primary key default gen_random_uuid(),
+  name text not null check (char_length(btrim(name)) between 1 and 60),
+  name_key text generated always as (lower(btrim(name))) stored,
+  url text not null check (url like 'https://%' and char_length(url) <= 2000),
+  format text not null check (
+    format in ('confs-tech-json', 'testing-conferences-yaml', 'json', 'yaml', 'ical', 'jsonld', 'ai')
+  ),
+  -- Zie migrations/20261119_discovery_sources_autodetect.sql.
+  config jsonb,
+  default_category text not null default 'development'
+    check (default_category in ('development', 'testing', 'test-automation')),
+  created_at timestamptz not null default now(),
+  unique (name_key),
+  unique (url)
+);
+
 -- Publieke clients praten uitsluitend met de Next.js API, niet direct met Supabase.
 -- De server gebruikt de service-role key. Maak voor deze demo GEEN publieke policies.
 alter table public.conferences enable row level security;
@@ -82,9 +104,14 @@ alter table public.reviews enable row level security;
 alter table public.ingestion_runs enable row level security;
 alter table public.attendances enable row level security;
 alter table public.cost_assumptions enable row level security;
+alter table public.discovery_sources enable row level security;
 
 -- Ervaringen en foto's (roadmap #3): zie migrations/20261119_experiences.sql voor de
 -- volledige definitie, inclusief de storage-bucket 'experience-photos'.
 
 -- Microsoft-identiteiten, accountgebonden bijdragen en atomische opslag:
 -- voer migrations/20261119_entra_identity.sql uit ná de ervaringenmigratie.
+
+-- AI-verrijking: zie migrations/20261119_ai_enrichment.sql (conferences.ai_checked_at,
+-- conferences.ai_fields, cost_assumptions.source en cost_assumptions.note).
+

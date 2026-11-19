@@ -1,5 +1,6 @@
 // Eigenaar: B. Alleen de vaste, publieke YAML-bron van TestingConferences.org.
 import { parseDocument } from 'yaml';
+import { loadFixedSource, type FetchResult, type SourceLoader } from '@/lib/discovery/fetch-source';
 import { normalizeUrl } from '@/lib/discovery/normalize-url';
 import { readDate, readText, readUrl } from '@/lib/discovery/validation';
 import { mentionsYearSince, pastCutoff } from '@/lib/discovery/past-window';
@@ -48,7 +49,10 @@ export function parseTestingDates(
   return { start_date: startDate, end_date: endDate };
 }
 
-function parseLocation(value: unknown): Pick<ConferenceInput, 'city' | 'country' | 'online_only'> {
+/** "Stad, Land", "Online", "TBA" of "X and Online" (hybride). Ook gebruikt door eigen bronnen. */
+export function parseLocation(
+  value: unknown,
+): Pick<ConferenceInput, 'city' | 'country' | 'online_only'> {
   const text = readText(value, 'location');
   // Alleen 'Online' is online-only; 'X and Online' is hybride en houdt zijn fysieke plaats.
   if (text && /^online$/i.test(text)) return { city: null, country: null, online_only: true };
@@ -71,6 +75,7 @@ function parseLocation(value: unknown): Pick<ConferenceInput, 'city' | 'country'
 export function parseTestingConferenceRecord(
   value: unknown,
   sourceUrl: string = TESTING_CONFERENCES_SOURCE,
+  sourceName = 'testing-conferences',
 ): ConferenceInput {
   if (typeof value !== 'object' || value === null || Array.isArray(value)) {
     throw new Error('Record moet een object zijn');
@@ -83,7 +88,7 @@ export function parseTestingConferenceRecord(
     name,
     official_url: officialUrl,
     canonical_url: normalizeUrl(officialUrl),
-    source_name: 'testing-conferences',
+    source_name: sourceName,
     source_url: sourceUrl,
     ...parseTestingDates(record.dates),
     ...parseLocation(record.location),
@@ -99,13 +104,14 @@ export function parseTestingConferenceRecord(
 
 type YamlOptions = {
   sourceUrl?: string;
+  sourceName?: string;
   /** Alleen records met begindatum vanaf deze datum; oudere (ook ongeldige) worden overgeslagen. */
   since?: string;
 };
 
 export function parseTestingConferencesYaml(
   text: string,
-  { sourceUrl = TESTING_CONFERENCES_SOURCE, since }: YamlOptions = {},
+  { sourceUrl = TESTING_CONFERENCES_SOURCE, sourceName, since }: YamlOptions = {},
 ): {
   items: ConferenceInput[];
   errors: string[];
@@ -118,7 +124,7 @@ export function parseTestingConferencesYaml(
   const errors: string[] = [];
   for (const [index, record] of data.entries()) {
     try {
-      const item = parseTestingConferenceRecord(record, sourceUrl);
+      const item = parseTestingConferenceRecord(record, sourceUrl, sourceName);
       if (since && item.start_date < since) continue;
       items.push(item);
     } catch (error) {
@@ -149,20 +155,24 @@ export async function fetchTestingConferencesPast(now: Date = new Date()): Promi
   return fetchTestingYaml(TESTING_CONFERENCES_PAST_SOURCE, pastCutoff(now));
 }
 
+/** Eén feed in TestingConferences-YAML-formaat, bijv. een door een beheerder toegevoegde bron. */
+export function fetchTestingConferencesFeed(
+  sourceUrl: string,
+  sourceName: string,
+  load: SourceLoader = loadFixedSource,
+): Promise<FetchResult> {
+  return fetchTestingYaml(sourceUrl, undefined, { sourceName, load });
+}
+
 async function fetchTestingYaml(
   sourceUrl: string,
   since?: string,
-): Promise<{ items: ConferenceInput[]; errors: string[] }> {
+  { sourceName, load = loadFixedSource }: { sourceName?: string; load?: SourceLoader } = {},
+): Promise<FetchResult> {
   try {
-    const response = await fetch(sourceUrl, {
-      cache: 'no-store',
-      redirect: 'error',
-      signal: AbortSignal.timeout(15_000),
-    });
-    if (!response.ok) throw new Error(`HTTP ${response.status}`);
-    const text = await response.text();
+    const text = await load(sourceUrl);
     if (text.length > 1_000_000) throw new Error('YAML-bron is te groot');
-    const result = parseTestingConferencesYaml(text, { sourceUrl, since });
+    const result = parseTestingConferencesYaml(text, { sourceUrl, sourceName, since });
     return {
       items: result.items,
       errors: result.errors.map((error) => `${sourceUrl}: ${error}`),

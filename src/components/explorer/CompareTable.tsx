@@ -10,6 +10,7 @@ import {
   orUnknown,
 } from './format';
 import { basisNote } from './CostValue';
+import { ConferenceLogo } from './ConferenceImages';
 import { Value } from './Value';
 
 /** Vervangt de rij 'prijs' door ticket, reis, hotel en totaal (schatting). */
@@ -20,7 +21,9 @@ function costRows(costs: Record<string, CostEstimate | null>): Row[] {
       label: 'ticket',
       value: (c) => {
         const t = get(c)?.ticket;
-        return t ? `${formatEuro(t.amount)} (officieel)` : UNKNOWN;
+        return t
+          ? `${formatEuro(t.amount)} (${t.byAi ? 'door AI van de website' : 'officieel'})`
+          : UNKNOWN;
       },
     },
     {
@@ -121,14 +124,17 @@ export function CompareTable({ conferences, onClear, stats, costs }: Props) {
               </th>
               {conferences.map((c) => (
                 <th key={c.id} scope="col" className="font-display py-2 pr-3 font-semibold">
-                  <a
-                    className="text-signal hover:underline"
-                    href={c.official_url}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                  >
-                    {c.name}
-                  </a>
+                  <span className="flex items-center gap-2">
+                    <ConferenceLogo conference={c} size="sm" />
+                    <a
+                      className="text-signal hover:underline"
+                      href={c.official_url}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                    >
+                      {c.name}
+                    </a>
+                  </span>
                 </th>
               ))}
             </tr>

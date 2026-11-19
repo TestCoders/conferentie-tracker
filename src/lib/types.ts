@@ -1,5 +1,5 @@
 /**
- * Gedeeld contract (eigenaar: A). Zie HACKATHON_PLAN.md §6.
+ * Gedeeld contract (eigenaar: A). Zie plan.md §3.
  * NIET lokaal varianten van deze types definiëren; wijzigingen alleen via A
  * met akkoord van alle vier.
  */
@@ -32,15 +32,45 @@ export type Conference = {
   ticket_price_eur: number | null;
   /** Bron van de ticketprijs (https). */
   ticket_price_url: string | null;
+  /** Afbeelding (og:image) van de officiële website, alleen https; anders null. */
+  image_url: string | null;
+  /** Logo/icoon (apple-touch-icon, icon) van de officiële website, alleen https; anders null. */
+  icon_url: string | null;
+  /** Laatste keer dat de AI-verrijking deze conferentie controleerde. */
+  ai_checked_at: string | null;
+  /** Velden die door de AI-verrijking zijn ingevuld (bijv. 'ticket_price_eur', 'country'). */
+  ai_fields: AiField[];
   status: ConferenceStatus;
   last_checked_at: string;
 };
 
-/** Rij zoals de discovery-engine hem aanlevert voor een upsert (zonder DB-velden). */
-/** Zonder ticketvelden: die beheert een beheerder en mag een herimport niet overschrijven. */
+/** Velden die de AI-verrijking mag invullen. */
+export const AI_FIELDS = [
+  'city',
+  'country',
+  'online_only',
+  'ticket_price_eur',
+  'ticket_price_url',
+  'cfp_deadline',
+  'cfp_url',
+] as const;
+export type AiField = (typeof AI_FIELDS)[number];
+
+/**
+ * Rij zoals de discovery-engine hem aanlevert voor een upsert (zonder DB-velden).
+ * Zonder ticket-, AI- en afbeeldingsvelden: een herimport mag die niet overschrijven.
+ */
 export type ConferenceInput = Omit<
   Conference,
-  'id' | 'status' | 'last_checked_at' | 'ticket_price_eur' | 'ticket_price_url'
+  | 'id'
+  | 'status'
+  | 'last_checked_at'
+  | 'ticket_price_eur'
+  | 'ticket_price_url'
+  | 'image_url'
+  | 'icon_url'
+  | 'ai_checked_at'
+  | 'ai_fields'
 > & {
   status?: ConferenceStatus;
 };
@@ -52,15 +82,136 @@ export type ErrorResponse = { error: string };
 export type AppUser = { id: string; display_name: string; disabled_at: string | null };
 
 /** '-past': historische bronnen, conferenties vanaf 12 maanden geleden. */
-export type DiscoverySource =
-  'confs-tech' | 'testing-conferences' | 'confs-tech-past' | 'testing-conferences-past';
+export const DISCOVERY_SOURCES = [
+  'confs-tech',
+  'testing-conferences',
+  'confs-tech-past',
+  'testing-conferences-past',
+] as const;
+/** Vaste, ingebouwde bronnen. */
+export type DiscoverySource = (typeof DISCOVERY_SOURCES)[number];
+
+/**
+ * Feedformaat van een handmatig toegevoegde bron. Bepaalt welke bestaande parser
+ * (confs.tech of TestingConferences) de feed verwerkt.
+ */
+/**
+ * Formaat van een handmatig toegevoegde bron; wordt per URL automatisch herkend.
+ * - confs-tech-json / testing-conferences-yaml: exact de parsers van de vaste bronnen.
+ * - json / yaml: lijst records; velden via een automatisch gevonden `SourceParseConfig`.
+ * - ical: iCalendar-feed (VEVENT).
+ * - jsonld: HTML-pagina met schema.org Event-gegevens (JSON-LD).
+ * - ai: gewone HTML-pagina, uitgelezen door de AI (records krijgen status 'pending').
+ */
+export const CUSTOM_SOURCE_FORMATS = [
+  'confs-tech-json',
+  'testing-conferences-yaml',
+  'json',
+  'yaml',
+  'ical',
+  'jsonld',
+  'ai',
+] as const;
+export type CustomSourceFormat = (typeof CUSTOM_SOURCE_FORMATS)[number];
+
+/** Velden van een conferentie die uit een json/yaml-record gehaald kunnen worden. */
+export const MAPPED_FIELDS = [
+  'name',
+  'url',
+  'startDate',
+  'endDate',
+  /** Vrije datumtekst, bijv. "March 3-4, 2027". */
+  'dates',
+  'city',
+  'country',
+  /** "Stad, Land", "Online" of een object met city/country. */
+  'location',
+  'online',
+  'cfpUrl',
+  'cfpDeadline',
+  'price',
+] as const;
+export type MappedField = (typeof MAPPED_FIELDS)[number];
+
+/** Hoe een json/yaml-bron gelezen wordt: waar de lijst staat en welke sleutel welk veld is. */
+export type SourceParseConfig = {
+  /** Pad naar de lijst records; [] = de lijst is de hele feed. */
+  recordsPath: string[];
+  fields: Partial<Record<MappedField, string>>;
+};
+
+/** Door een beheerder toegevoegde bron (tabel discovery_sources). */
+export type CustomDiscoverySource = {
+  id: string;
+  /** Uniek label; wordt ook conferences.source_name en ingestion_runs.source_name. */
+  name: string;
+  url: string;
+  format: CustomSourceFormat;
+  /** Alleen bij json/yaml. */
+  config: SourceParseConfig | null;
+  /** Categorie als de naam geen bewijs voor testing/test-automation bevat. */
+  default_category: Category;
+  created_at: string;
+};
+
+/** POST /api/admin/sources — de server analyseert de URL opnieuw; het formaat kies je niet zelf. */
+export type CreateCustomSourceRequest = {
+  name: string;
+  url: string;
+  defaultCategory?: Category;
+};
+
+/** POST /api/admin/sources/analyze */
+export type AnalyzeSourceRequest = { url: string };
+
+/** Uitkomst van de analyse van een URL: wat er gevonden is, nog zonder iets op te slaan. */
+export type SourceAnalysis = {
+  url: string;
+  format: CustomSourceFormat;
+  config: SourceParseConfig | null;
+  /** Voorgestelde standaardcategorie op basis van de gevonden namen. */
+  defaultCategory: Category;
+  /** Aantal geldige conferenties in de bron. */
+  found: number;
+  /** De eerste paar geldige records, zoals ze opgeslagen zouden worden. */
+  sample: ConferenceInput[];
+  /** Eerste fouten (ongeldige records e.d.). */
+  errors: string[];
+  /** Nieuwe conferenties uit deze bron krijgen status 'pending' (AI-extractie). */
+  pending: boolean;
+};
+
+/** POST /api/discovery/run — óf een vaste bron, óf het id van een eigen bron. */
+export type DiscoveryRunRequest = { source?: DiscoverySource } | { sourceId: string };
 
 export type DiscoveryRunResponse = {
-  source: DiscoverySource;
+  /** Vaste bron-key, of de naam van een eigen bron. */
+  source: string;
   found: number;
   inserted: number;
   updated: number;
   errors: string[];
+  /** Websites bekeken op logo/afbeelding in deze run; ontbreekt als die stap niet draaide. */
+  images?: { checked: number; found: number };
+  /** Alleen bij eigen bronnen: in hoeverre de kostenschatting voor deze records werkt. */
+  costCoverage?: CostCoverage;
+};
+
+/**
+ * Dekking van de kostenschatting (src/lib/costs.ts) voor de records van één discovery-run.
+ * Feeds bevatten geen ticketprijzen; die komen via de AI-verrijking of een beheerder.
+ */
+export type CostCoverage = {
+  /** Records met een schatting voor reis + hotel (eigen land, standaardaanname of online). */
+  withEstimate: number;
+  /** Waarvan online-only (reis en hotel € 0). */
+  online: number;
+  /** Landen zonder eigen aanname die op de standaardaanname terugvallen. */
+  onDefault: string[];
+  /** Landen zonder eigen aanname terwijl er ook geen standaardaanname is: Onbekend. */
+  missingCountries: string[];
+  /** Records zonder bekende locatie (TBA): Onbekend. */
+  withoutLocation: number;
 };
 
 /** Velden die via PATCH /api/admin/conferences/:id aangepast mogen worden. */
@@ -146,6 +297,35 @@ export type CostAssumption = {
   travel_eur: number;
   hotel_per_night_eur: number;
   updated_at: string;
+  /** 'admin' = door een beheerder ingevuld, 'ai' = ruwe AI-schatting (zie updated_at). */
+  source: 'admin' | 'ai';
+  /** Korte toelichting bij een AI-schatting. */
+  note: string | null;
+};
+
+/* ---------- AI-verrijking ---------- */
+
+export const ENRICH_TARGETS = ['costs', 'conferences'] as const;
+export type EnrichTarget = (typeof ENRICH_TARGETS)[number];
+
+/** POST /api/admin/enrich */
+export type EnrichRequest = {
+  target: EnrichTarget;
+  /** Alleen bij 'conferences': aantal conferenties per run (1–12, standaard 6). */
+  limit?: number;
+};
+
+export type EnrichResponse = {
+  target: EnrichTarget;
+  /** Het model dat OpenRouter daadwerkelijk gebruikte. */
+  model: string | null;
+  /** Aantal AI-verzoeken (tellen mee voor de dagelijkse limiet van gratis modellen). */
+  requests: number;
+  processed: number;
+  updated: number;
+  /** Alleen bij 'conferences': nog nooit door de AI gecontroleerde conferenties. */
+  remaining: number | null;
+  errors: string[];
 };
 
 /** PUT /api/admin/cost-assumptions — upsert op genormaliseerd land. */
@@ -221,4 +401,4 @@ export type ExperienceConference = Pick<
 
 /** Kolommen die we teruggeven als Conference (geen created_at/updated_at). */
 export const CONFERENCE_COLUMNS =
-  'id,name,official_url,canonical_url,source_name,source_url,start_date,end_date,city,country,category,cfp_url,cfp_deadline,price_text,online_only,ticket_price_eur,ticket_price_url,status,last_checked_at';
+  'id,name,official_url,canonical_url,source_name,source_url,start_date,end_date,city,country,category,cfp_url,cfp_deadline,price_text,online_only,ticket_price_eur,ticket_price_url,ai_checked_at,ai_fields,image_url,icon_url,status,last_checked_at';

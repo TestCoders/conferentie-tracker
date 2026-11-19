@@ -1,12 +1,12 @@
 # AGENTS.md — Conference Tracker
 
 Instructies voor iedere developer **en** iedere AI-coding-agent in deze repo.
-Lees eerst [HACKATHON_PLAN.md](HACKATHON_PLAN.md); dat is leidend voor scope, schema en API-contract.
-Bij tegenstrijdigheid wint `HACKATHON_PLAN.md`, daarna dit bestand.
+Lees eerst [plan.md](plan.md); dat is leidend voor scope, schema en API-contract.
+Bij tegenstrijdigheid wint `plan.md`, daarna dit bestand.
 
 ## 1. Startinstructie voor je agent
 
-> Werk **uitsluitend** aan werkpakket **[A/B/C/D]** uit `HACKATHON_PLAN.md`. Respecteer de bestanden in
+> Werk **uitsluitend** aan werkpakket **[A/B/C/D]** uit `plan.md`. Respecteer de bestanden in
 > de eigenaarstabel hieronder, het SQL-schema en het API-contract in `src/lib/types.ts`. Bouw de kleinste
 > verifieerbare stap, draai `npm run check`, commit op je eigen branch en rapporteer:
 > **afgerond / gewijzigde bestanden / getest / blokkades**. Wijzig geen bestanden van andere
@@ -21,7 +21,7 @@ Bij tegenstrijdigheid wint `HACKATHON_PLAN.md`, daarna dit bestand.
 | **C** Explorer                | `feat/explorer`      | `src/app/page.tsx`, `src/components/explorer/**`                                                                                                                                                                                                              |
 | **D** Admin & reviews         | `feat/admin-reviews` | `src/app/admin/**`, `src/components/admin/**`, `src/components/reviews/**`, `src/app/api/admin/**`, `src/app/api/reviews/**`                                                                                                                                  |
 
-Iedereen mag regels **toevoegen** aan `ROADMAP.md` (ideeën voor later — niet nu bouwen).
+Iedereen mag regels **toevoegen** aan `plan.md` §8 (ideeën voor later — niet nu bouwen).
 
 Een bestand buiten je eigen rij nodig? **Niet zelf aanpassen.** Vraag het aan de eigenaar of aan A.
 De boilerplate bevat al een stub voor ieder pakket (zoek op `TODO(B)`, `TODO(C)`, `TODO(D)`).

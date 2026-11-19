@@ -25,7 +25,7 @@ export function CommunityBadge({ stats = EMPTY, expanded, controls, onToggle }: 
       aria-controls={controls}
       aria-label={label}
       title={label}
-      className={`focus-visible:ring-signal flex items-center gap-2 rounded-md border px-2 py-1 font-mono text-xs transition-colors focus-visible:ring-2 focus-visible:outline-none ${
+      className={`focus-visible:ring-signal flex min-w-[4.5rem] items-center justify-between gap-2 rounded-md border px-2 py-1 font-mono text-xs whitespace-nowrap transition-colors focus-visible:ring-2 focus-visible:outline-none ${
         expanded
           ? 'border-signal bg-signal-glow text-signal'
           : 'border-hairline bg-glass text-ink-soft hover:text-ink'
