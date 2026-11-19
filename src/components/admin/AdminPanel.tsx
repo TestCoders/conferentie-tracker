@@ -28,6 +28,8 @@ type StatusFilter = ConferenceStatus | 'all';
 const SOURCES: { value: DiscoverySource; label: string }[] = [
   { value: 'confs-tech', label: 'confs.tech' },
   { value: 'testing-conferences', label: 'TestingConferences.org' },
+  { value: 'confs-tech-past', label: 'confs.tech — afgelopen 12 maanden' },
+  { value: 'testing-conferences-past', label: 'TestingConferences.org — afgelopen 12 maanden' },
 ];
 
 async function readError(res: Response): Promise<string> {
