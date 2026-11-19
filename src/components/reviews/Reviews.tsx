@@ -21,6 +21,14 @@ function Stars({ value, label }: { value: number; label: string }) {
 }
 
 export function Reviews({ conferenceId }: { conferenceId: Conference['id'] }) {
+  return (
+    <ContributionGate message="Log in met Microsoft om reviews, deelnemers en ervaringen te bekijken.">
+      <ReviewsContent conferenceId={conferenceId} />
+    </ContributionGate>
+  );
+}
+
+function ReviewsContent({ conferenceId }: { conferenceId: Conference['id'] }) {
   const [data, setData] = useState<ReviewsResponse | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [open, setOpen] = useState(false);

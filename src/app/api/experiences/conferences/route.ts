@@ -1,11 +1,12 @@
+import { requireUser } from '@/lib/auth-access';
 // GET — goedgekeurde conferenties die al begonnen zijn, om een ervaring aan te koppelen.
-import { connection } from 'next/server';
 import { jsonError } from '@/lib/http';
 import { getSupabaseAdmin } from '@/lib/supabase-admin';
 import type { ExperienceConference, ListResponse } from '@/lib/types';
 
-export async function GET() {
-  await connection();
+export async function GET(request: Request) {
+  const access = await requireUser(request);
+  if (access.response) return access.response;
   try {
     const today = new Date().toISOString().slice(0, 10);
     const { data, error } = await getSupabaseAdmin()
@@ -16,9 +17,12 @@ export async function GET() {
       .order('start_date', { ascending: false })
       .limit(500);
     if (error) return jsonError(error.message, 500);
-    return Response.json({
-      items: (data ?? []) as ExperienceConference[],
-    } satisfies ListResponse<ExperienceConference>);
+    return Response.json(
+      {
+        items: (data ?? []) as ExperienceConference[],
+      } satisfies ListResponse<ExperienceConference>,
+      { headers: { 'Cache-Control': 'private, no-store' } },
+    );
   } catch (err) {
     return jsonError(err instanceof Error ? err.message : 'Unknown error', 500);
   }

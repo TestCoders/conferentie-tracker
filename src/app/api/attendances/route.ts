@@ -21,6 +21,8 @@ type AttendanceRow = Omit<Attendance, 'rating'> & { name_key: string };
 const nameKey = (name: string) => name.trim().toLowerCase();
 
 export async function GET(request: Request) {
+  const access = await requireUser(request);
+  if (access.response) return access.response;
   const conferenceId = new URL(request.url).searchParams.get('conferenceId') ?? '';
   if (!UUID_RE.test(conferenceId)) return jsonError('conferenceId (UUID) is verplicht', 400);
 
@@ -65,11 +67,14 @@ export async function GET(request: Request) {
     // Eerst wie het heeft bijgewoond, daarna geïnteresseerden.
     items.sort((a, b) => (a.status === b.status ? 0 : a.status === 'attended' ? -1 : 1));
 
-    return Response.json({
-      items,
-      interested: items.filter((a) => a.status === 'interested').length,
-      attended: items.filter((a) => a.status === 'attended').length,
-    } satisfies AttendancesResponse);
+    return Response.json(
+      {
+        items,
+        interested: items.filter((a) => a.status === 'interested').length,
+        attended: items.filter((a) => a.status === 'attended').length,
+      } satisfies AttendancesResponse,
+      { headers: { 'Cache-Control': 'private, no-store' } },
+    );
   } catch (err) {
     return jsonError(err instanceof Error ? err.message : 'Unknown error', 500);
   }

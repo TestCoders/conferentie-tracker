@@ -1,7 +1,6 @@
 // GET ?conferenceId=<uuid>&id=<uuid> en POST — ervaringen (verslagen) delen, server-side gevalideerd.
 // Nieuwe auteurs en eigendom worden uitsluitend uit de Microsoft-sessie bepaald.
 import { requireUser } from '@/lib/auth-access';
-import { connection } from 'next/server';
 import { loadExperiences, newEditToken } from '@/lib/experiences-server';
 import { jsonError } from '@/lib/http';
 import { getSupabaseAdmin } from '@/lib/supabase-admin';
@@ -24,7 +23,8 @@ const LIST_LIMIT = 100;
 const BODY_MAX = 20000;
 
 export async function GET(request: Request) {
-  await connection();
+  const access = await requireUser(request);
+  if (access.response) return access.response;
   const params = new URL(request.url).searchParams;
   const conferenceId = params.get('conferenceId') ?? undefined;
   const id = params.get('id') ?? undefined;
@@ -37,7 +37,9 @@ export async function GET(request: Request) {
       id,
       limit: LIST_LIMIT,
     });
-    return Response.json({ items } satisfies ListResponse<Experience>);
+    return Response.json({ items } satisfies ListResponse<Experience>, {
+      headers: { 'Cache-Control': 'private, no-store' },
+    });
   } catch (err) {
     return jsonError(err instanceof Error ? err.message : 'Unknown error', 500);
   }

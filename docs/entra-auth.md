@@ -136,3 +136,15 @@ Bewaar geen codes, cookies, tokens of client-secretwaarden in testlogs/screensho
 de applicatiedeployment terug zonder de bestaande bijdragegegevens te verwijderen; de toegevoegde
 nullable identiteitskolommen kunnen blijven staan. Na de tweede migratie werkt de oude naamgebaseerde
 upsert niet meer; rol dan geen anoniem schrijfpad terug zonder expliciet herstel-/toegangsplan.
+
+## Communitygegevens alleen na inloggen
+
+Reviews, deelnemers, communitytellingen en ervaringen zijn uitsluitend beschikbaar voor actieve
+TestCoders-accounts (User of Admin). De lees-API's controleren dezelfde sessie en accountstatus
+als de schrijf-API's en geven `Cache-Control: private, no-store` terug. De interface vraagt bezoekers
+om in te loggen en laadt deze gegevens pas daarna. Conferenties zoeken en vergelijken blijft openbaar.
+
+Ervaringsfoto's lopen via `/api/experience-photos/[id]`, met een accountcontrole per download.
+Voer bij uitrol `supabase/migrations/20261119_private_community_photos.sql` uit om de bestaande
+`experience-photos`-bucket privé te maken. Daarmee werken oude openbare opslaglinks niet langer.
+Eerder gedownloade bestanden of reeds gecachte kopieën kunnen niet worden teruggehaald.
