@@ -3,6 +3,14 @@
 import { useState } from 'react';
 import { ConferenceRow } from '@/components/admin/ConferenceRow';
 import {
+  BTN_PRIMARY,
+  BTN_SECONDARY,
+  CARD,
+  FIELD,
+  FIELD_LABEL,
+  PROMPT,
+} from '@/components/admin/styles';
+import {
   CONFERENCE_STATUSES,
   type Conference,
   type ConferencePatch,
@@ -102,30 +110,34 @@ export function AdminPanel() {
   const visible = items?.filter((c) => filter === 'all' || c.status === filter) ?? [];
 
   return (
-    <div className="space-y-8">
-      <section className="space-y-3 rounded-lg border border-black/10 p-4 dark:border-white/15">
-        <label className="block">
-          <span className="text-sm font-medium">Admin-token</span>
+    <div className="space-y-10">
+      <section className={`${CARD} space-y-2`}>
+        <label className={FIELD_LABEL}>
+          --admin-token
           <input
             type="password"
-            className="mt-1 block w-full rounded border border-black/20 bg-transparent px-2 py-1 dark:border-white/25"
+            className={FIELD}
             value={token}
             onChange={(e) => setToken(e.target.value)}
             autoComplete="off"
+            placeholder="Plak hier het ADMIN_TOKEN"
           />
         </label>
-        <p className="text-xs text-black/60 dark:text-white/60">
+        <p className="text-ink-muted text-xs">
           Het token blijft alleen in deze pagina (React state) en verdwijnt bij herladen.
         </p>
       </section>
 
-      <section className="space-y-3">
-        <h2 className="text-lg font-semibold">Discovery</h2>
-        <div className="flex flex-wrap items-end gap-3">
-          <label className="block">
-            <span className="text-sm">Bron</span>
+      <section className="space-y-4">
+        <div>
+          <p className={PROMPT}>$ ./discovery --run</p>
+          <h2 className="font-display mt-1 text-xl font-semibold">Discovery</h2>
+        </div>
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-end">
+          <label className={FIELD_LABEL}>
+            --bron
             <select
-              className="mt-1 block rounded border border-black/20 bg-transparent px-2 py-1 dark:border-white/25"
+              className={FIELD}
               value={source}
               onChange={(e) => setSource(e.target.value as DiscoverySource)}
             >
@@ -138,42 +150,45 @@ export function AdminPanel() {
           </label>
           <button
             type="button"
-            className="rounded bg-black px-4 py-2 text-white disabled:opacity-50 dark:bg-white dark:text-black"
+            className={BTN_PRIMARY}
             onClick={runDiscovery}
             disabled={!token || running}
           >
-            {running ? 'Bezig…' : 'Run discovery'}
+            {running ? 'Bezig…' : '▶ Run discovery'}
           </button>
         </div>
 
         {runError && (
-          <p role="alert" className="text-sm text-red-600">
-            Discovery mislukt: {runError}
+          <p role="alert" className="text-alert font-mono text-sm">
+            ✗ Discovery mislukt: {runError}
           </p>
         )}
         {result && (
-          <div className="space-y-2">
-            <dl className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+          <div className="space-y-3" aria-live="polite">
+            <dl className="grid grid-cols-2 gap-3 sm:grid-cols-4">
               {(
                 [
-                  ['Gevonden', result.found],
-                  ['Nieuw', result.inserted],
-                  ['Bijgewerkt', result.updated],
-                  ['Fouten', result.errors.length],
+                  ['found', result.found, 'text-ink'],
+                  ['inserted', result.inserted, 'text-adopt'],
+                  ['updated', result.updated, 'text-signal'],
+                  [
+                    'errors',
+                    result.errors.length,
+                    result.errors.length ? 'text-alert' : 'text-ink',
+                  ],
                 ] as const
-              ).map(([label, value]) => (
-                <div
-                  key={label}
-                  className="rounded border border-black/10 p-3 dark:border-white/15"
-                >
-                  <dt className="text-xs text-black/60 dark:text-white/60">{label}</dt>
-                  <dd className="text-2xl font-semibold">{value}</dd>
+              ).map(([label, value, color]) => (
+                <div key={label} className={CARD}>
+                  <dt className="text-ink-muted font-mono text-xs">{label}</dt>
+                  <dd className={`font-display mt-1 text-3xl font-bold ${color}`}>{value}</dd>
                 </div>
               ))}
             </dl>
-            <p className="text-xs text-black/60 dark:text-white/60">Bron: {result.source}</p>
+            <p className="text-ink-muted font-mono text-xs">
+              <span className="text-adopt">✓</span> bron: {result.source}
+            </p>
             {result.errors.length > 0 && (
-              <ul className="list-disc space-y-1 pl-5 text-sm text-red-600">
+              <ul className="text-alert list-disc space-y-1 pl-5 font-mono text-xs">
                 {result.errors.map((e, i) => (
                   <li key={i}>{e}</li>
                 ))}
@@ -183,49 +198,54 @@ export function AdminPanel() {
         )}
       </section>
 
-      <section className="space-y-3">
-        <div className="flex flex-wrap items-center justify-between gap-3">
-          <h2 className="text-lg font-semibold">Conferenties</h2>
+      <section className="space-y-4">
+        <div className="flex flex-wrap items-end justify-between gap-3">
+          <div>
+            <p className={PROMPT}>$ ls ./conferenties --all</p>
+            <h2 className="font-display mt-1 text-xl font-semibold">Conferenties</h2>
+          </div>
           <button
             type="button"
-            className="rounded border border-black/20 px-3 py-1 text-sm disabled:opacity-50 dark:border-white/25"
+            className={BTN_SECONDARY}
             onClick={loadConferences}
             disabled={!token || loading}
           >
-            {loading ? 'Laden…' : items ? 'Vernieuwen' : 'Laden'}
+            {loading ? 'Laden…' : items ? '↻ Vernieuwen' : '↓ Laden'}
           </button>
         </div>
 
         {listError && (
-          <p role="alert" className="text-sm text-red-600">
-            Laden mislukt: {listError}
+          <p role="alert" className="text-alert font-mono text-sm">
+            ✗ Laden mislukt: {listError}
           </p>
         )}
 
         {items && (
           <>
-            <div className="flex flex-wrap gap-2" role="group" aria-label="Filter op status">
+            <div
+              className="border-hairline bg-surface flex w-fit flex-wrap rounded-md border p-0.5"
+              role="group"
+              aria-label="Filter op status"
+            >
               {(['all', ...CONFERENCE_STATUSES] as const).map((s) => (
                 <button
                   key={s}
                   type="button"
                   aria-pressed={filter === s}
                   onClick={() => setFilter(s)}
-                  className={`rounded-full border px-3 py-1 text-sm ${
-                    filter === s
-                      ? 'border-black bg-black text-white dark:border-white dark:bg-white dark:text-black'
-                      : 'border-black/20 dark:border-white/25'
+                  className={`rounded px-3 py-1.5 font-mono text-xs transition-colors ${
+                    filter === s ? 'bg-signal text-white' : 'text-ink-soft hover:text-ink'
                   }`}
                 >
-                  {s === 'all' ? `Alle (${items.length})` : `${s} (${counts[s]})`}
+                  {s === 'all' ? `alle (${items.length})` : `${s} (${counts[s]})`}
                 </button>
               ))}
             </div>
 
             {visible.length === 0 ? (
-              <p className="text-sm text-black/60 dark:text-white/60">Geen conferenties.</p>
+              <p className="text-ink-muted">Geen conferenties.</p>
             ) : (
-              <ul className="divide-y divide-black/10 rounded-lg border border-black/10 dark:divide-white/15 dark:border-white/15">
+              <ul className="divide-hairline border-hairline bg-surface divide-y overflow-hidden rounded-md border">
                 {visible.map((c) => (
                   <ConferenceRow key={c.id} conference={c} onUpdate={updateConference} />
                 ))}

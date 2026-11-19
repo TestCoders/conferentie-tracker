@@ -1,6 +1,7 @@
 'use client';
 // Eigenaar: D. Eén beheerregel: status wijzigen en beperkte correcties (ADMIN_EDITABLE_FIELDS).
 import { useState, type FormEvent } from 'react';
+import { BTN_PRIMARY, BTN_SECONDARY, FIELD, FIELD_LABEL } from '@/components/admin/styles';
 import type { Conference, ConferencePatch, ConferenceStatus } from '@/lib/types';
 
 type Props = {
@@ -9,16 +10,17 @@ type Props = {
 };
 
 const STATUS_STYLES: Record<ConferenceStatus, string> = {
-  approved: 'bg-green-100 text-green-800 dark:bg-green-900/40 dark:text-green-200',
-  pending: 'bg-amber-100 text-amber-800 dark:bg-amber-900/40 dark:text-amber-200',
-  rejected: 'bg-red-100 text-red-800 dark:bg-red-900/40 dark:text-red-200',
+  approved: 'bg-glass text-adopt',
+  pending: 'bg-glass text-assess',
+  rejected: 'bg-glass text-alert',
 };
 
-const inputClass =
-  'mt-1 block w-full rounded border border-black/20 bg-transparent px-2 py-1 text-sm dark:border-white/25';
+const BADGE = 'rounded px-2 py-0.5 font-mono text-[11px] font-semibold';
+const BTN_ACTION =
+  'rounded-md px-3 py-1.5 font-mono text-xs font-semibold text-white transition-opacity hover:opacity-90 disabled:opacity-40';
 
-function unknown(value: string | null): string {
-  return value ?? 'Onbekend';
+function Unknown({ value }: { value: string | null }) {
+  return value ? <>{value}</> : <span className="text-ink-muted italic">Onbekend</span>;
 }
 
 export function ConferenceRow({ conference: c, onUpdate }: Props) {
@@ -58,12 +60,16 @@ export function ConferenceRow({ conference: c, onUpdate }: Props) {
     if (ok) setEditing(false);
   }
 
-  const location = [c.city, c.country].filter(Boolean).join(', ') || 'Onbekend';
+  const location = [c.city, c.country].filter(Boolean).join(', ') || null;
   const dates =
     c.end_date && c.end_date !== c.start_date ? `${c.start_date} – ${c.end_date}` : c.start_date;
 
   return (
-    <li className="space-y-2 p-4">
+    <li
+      className={`space-y-3 px-4 py-3 transition-colors ${
+        c.status === 'rejected' ? 'opacity-60' : 'hover:bg-glass/60'
+      }`}
+    >
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div className="min-w-0 space-y-1">
           <div className="flex flex-wrap items-center gap-2">
@@ -71,23 +77,28 @@ export function ConferenceRow({ conference: c, onUpdate }: Props) {
               href={c.official_url}
               target="_blank"
               rel="noopener noreferrer"
-              className="font-medium underline-offset-2 hover:underline"
+              className="font-display hover:text-signal font-semibold hover:underline"
             >
               {c.name}
             </a>
-            <span className={`rounded px-2 py-0.5 text-xs ${STATUS_STYLES[c.status]}`}>
-              {c.status}
-            </span>
+            <span className={`${BADGE} ${STATUS_STYLES[c.status]}`}>{c.status}</span>
+            <span className={`${BADGE} bg-signal-glow text-signal`}>{c.category}</span>
           </div>
-          <p className="text-sm text-black/70 dark:text-white/70">
-            {dates} · {location} · {c.category} · CFP: {unknown(c.cfp_deadline)}
+          <p className="text-ink-soft text-sm">
+            {dates} · <Unknown value={location} /> ·{' '}
+            <span className="text-ink-muted font-mono text-xs">cfp:</span>{' '}
+            <Unknown value={c.cfp_deadline} />
           </p>
-          <p className="text-xs text-black/50 dark:text-white/50">
-            Bron:{' '}
-            <a href={c.source_url} target="_blank" rel="noopener noreferrer" className="underline">
-              {c.source_name}
+          <p className="text-ink-muted font-mono text-xs">
+            <a
+              href={c.source_url}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="hover:underline"
+            >
+              bron: {c.source_name}
             </a>{' '}
-            · laatst gecontroleerd {c.last_checked_at.slice(0, 16).replace('T', ' ')}
+            · gecontroleerd {c.last_checked_at.slice(0, 16).replace('T', ' ')}
           </p>
         </div>
 
@@ -97,9 +108,9 @@ export function ConferenceRow({ conference: c, onUpdate }: Props) {
               type="button"
               disabled={busy}
               onClick={() => apply({ status: 'approved' })}
-              className="rounded bg-green-700 px-3 py-1 text-sm text-white disabled:opacity-50"
+              className={`${BTN_ACTION} bg-adopt`}
             >
-              Goedkeuren
+              ✓ Goedkeuren
             </button>
           )}
           {c.status !== 'rejected' && (
@@ -107,76 +118,70 @@ export function ConferenceRow({ conference: c, onUpdate }: Props) {
               type="button"
               disabled={busy}
               onClick={() => apply({ status: 'rejected' })}
-              className="rounded bg-red-700 px-3 py-1 text-sm text-white disabled:opacity-50"
+              className={`${BTN_ACTION} bg-alert`}
             >
-              Afwijzen
+              ✗ Afwijzen
             </button>
           )}
           {!editing && (
-            <button
-              type="button"
-              disabled={busy}
-              onClick={startEdit}
-              className="rounded border border-black/20 px-3 py-1 text-sm disabled:opacity-50 dark:border-white/25"
-            >
-              Corrigeren
+            <button type="button" disabled={busy} onClick={startEdit} className={BTN_SECONDARY}>
+              ✎ Corrigeren
             </button>
           )}
         </div>
       </div>
 
       {editing && (
-        <form onSubmit={saveEdit} className="grid gap-3 sm:grid-cols-2">
-          <label className="block sm:col-span-2">
-            <span className="text-xs">Naam</span>
+        <form
+          onSubmit={saveEdit}
+          className="border-hairline bg-void grid gap-3 rounded-md border p-3 sm:grid-cols-2"
+        >
+          <label className={`${FIELD_LABEL} sm:col-span-2`}>
+            --naam
             <input
-              className={inputClass}
+              className={FIELD}
               required
               maxLength={200}
               value={draft.name}
               onChange={(e) => setDraft({ ...draft, name: e.target.value })}
             />
           </label>
-          <label className="block">
-            <span className="text-xs">Stad</span>
+          <label className={FIELD_LABEL}>
+            --stad
             <input
-              className={inputClass}
+              className={FIELD}
               maxLength={100}
               value={draft.city}
               onChange={(e) => setDraft({ ...draft, city: e.target.value })}
             />
           </label>
-          <label className="block">
-            <span className="text-xs">Land</span>
+          <label className={FIELD_LABEL}>
+            --land
             <input
-              className={inputClass}
+              className={FIELD}
               maxLength={100}
               value={draft.country}
               onChange={(e) => setDraft({ ...draft, country: e.target.value })}
             />
           </label>
-          <label className="block">
-            <span className="text-xs">CFP-deadline (leeg = onbekend)</span>
+          <label className={FIELD_LABEL}>
+            --cfp-deadline (leeg = onbekend)
             <input
               type="date"
-              className={inputClass}
+              className={FIELD}
               value={draft.cfp_deadline}
               onChange={(e) => setDraft({ ...draft, cfp_deadline: e.target.value })}
             />
           </label>
           <div className="flex items-end gap-2">
-            <button
-              type="submit"
-              disabled={busy}
-              className="rounded bg-black px-3 py-1 text-sm text-white disabled:opacity-50 dark:bg-white dark:text-black"
-            >
+            <button type="submit" disabled={busy} className={BTN_PRIMARY}>
               Opslaan
             </button>
             <button
               type="button"
               disabled={busy}
               onClick={() => setEditing(false)}
-              className="rounded border border-black/20 px-3 py-1 text-sm dark:border-white/25"
+              className={BTN_SECONDARY}
             >
               Annuleren
             </button>
@@ -185,8 +190,8 @@ export function ConferenceRow({ conference: c, onUpdate }: Props) {
       )}
 
       {error && (
-        <p role="alert" className="text-sm text-red-600">
-          {error}
+        <p role="alert" className="text-alert font-mono text-xs">
+          ✗ {error}
         </p>
       )}
     </li>
