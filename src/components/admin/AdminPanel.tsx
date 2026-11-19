@@ -284,7 +284,8 @@ export function AdminPanel() {
                   <p className="text-signal">
                     ⚠ Geen aanname (en geen standaardaanname) voor:{' '}
                     {result.costCoverage.missingCountries.join(', ')}. Die blijven Onbekend en
-                    vallen buiten het budgetfilter tot je een aanname instelt.
+                    vallen buiten het budgetfilter tot je een aanname instelt, of de
+                    AI-kostenschatting (AI-verrijking) ze laat schatten.
                   </p>
                 )}
                 {result.costCoverage.withoutLocation > 0 && (
@@ -294,9 +295,9 @@ export function AdminPanel() {
                   </p>
                 )}
                 <p className="text-ink-muted">
-                  Ticketprijs: deze feeds bevatten geen prijzen. Vul de officiële prijs per
-                  conferentie in via ✎ Corrigeren; die telt dan mee in het totaal en het
-                  budgetfilter.
+                  Ticketprijs: deze feeds bevatten geen prijzen. De AI-verrijking (conferenties)
+                  haalt ze van de officiële website; je kunt ze ook invullen via ✎ Corrigeren. Let
+                  op: een AI-run ververst ook handmatig ingevulde prijzen.
                 </p>
               </div>
             )}

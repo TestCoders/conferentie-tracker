@@ -87,9 +87,10 @@ export function SourceManager({
           </p>
           <p className="text-ink-muted mt-1 max-w-2xl text-xs">
             Kosten: reis en hotel worden geschat uit het land (eigen aanname of standaardaanname),
-            online conferenties kosten € 0. Feeds bevatten geen ticketprijzen; die vul je per
-            conferentie in via ✎ Corrigeren. Na een run zie je hoeveel records een schatting
-            krijgen.
+            online conferenties kosten € 0. Feeds bevatten geen ticketprijzen; die haalt de
+            AI-verrijking van de officiële website (of vul je in via ✎ Corrigeren). Conferenties die
+            de AI nog nooit controleerde gaan daarbij voor. Na een run zie je hoeveel records een
+            schatting krijgen.
           </p>
         </div>
         <button
