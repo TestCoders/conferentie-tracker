@@ -1,5 +1,5 @@
 /**
- * Gedeeld contract (eigenaar: A). Zie HACKATHON_PLAN.md §6.
+ * Gedeeld contract (eigenaar: A). Zie plan.md §3.
  * NIET lokaal varianten van deze types definiëren; wijzigingen alleen via A
  * met akkoord van alle vier.
  */
