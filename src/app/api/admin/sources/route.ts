@@ -10,7 +10,7 @@ import { jsonError, requireAdmin } from '@/lib/http';
 import type { CustomDiscoverySource, ListResponse } from '@/lib/types';
 
 export async function GET(request: Request) {
-  const denied = requireAdmin(request);
+  const denied = await requireAdmin(request);
   if (denied) return denied;
   try {
     const items = await listCustomSources();
@@ -23,7 +23,7 @@ export async function GET(request: Request) {
 export const maxDuration = 30;
 
 export async function POST(request: Request) {
-  const denied = requireAdmin(request);
+  const denied = await requireAdmin(request);
   if (denied) return denied;
 
   const raw = await request.text();

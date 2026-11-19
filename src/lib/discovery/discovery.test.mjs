@@ -6,6 +6,11 @@ import { after, test } from 'node:test';
 // Node's native TS runner does not read tsconfig's @/ alias.
 registerHooks({
   resolve(specifier, context, nextResolve) {
+    if (specifier === '@/lib/auth-access')
+      return {
+        url: 'data:text/javascript,export async function requireUser(request){if(request.headers.get("x-test-role")!=="admin") return {response:Response.json({error:"Unauthorized"},{status:401})}; return {user:{id:"test-user"},isAdmin:true}}',
+        shortCircuit: true,
+      };
     if (specifier.startsWith('@/')) {
       const path = specifier === '@/lib/discovery' ? 'lib/discovery/index' : specifier.slice(2);
       return nextResolve(new URL(`../../${path}.ts`, import.meta.url).href, context);
@@ -47,7 +52,6 @@ const originalFetch = globalThis.fetch;
 const originalEnv = {
   SUPABASE_URL: process.env.SUPABASE_URL,
   SUPABASE_SERVICE_ROLE_KEY: process.env.SUPABASE_SERVICE_ROLE_KEY,
-  ADMIN_TOKEN: process.env.ADMIN_TOKEN,
 };
 after(() => {
   globalThis.fetch = originalFetch;
@@ -268,11 +272,10 @@ for (const source of ['confs-tech', 'testing-conferences']) {
 }
 
 test('endpoint checks auth before parsing and rejects invalid or unsupported input', async () => {
-  process.env.ADMIN_TOKEN = 'test-only-admin';
   const request = (body, authorized = true) =>
     new Request('https://app.test/api/discovery/run', {
       method: 'POST',
-      headers: authorized ? { authorization: 'Bearer test-only-admin' } : {},
+      headers: authorized ? { 'x-test-role': 'admin' } : {},
       body,
     });
   assert.equal((await POST(request('{', false))).status, 401);

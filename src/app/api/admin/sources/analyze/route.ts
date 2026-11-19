@@ -1,5 +1,5 @@
 // Eigenaar: D. POST /api/admin/sources/analyze — URL ophalen, formaat herkennen en voorbeeldrecords
-// tonen, zonder iets op te slaan. Admin-token vereist. Bij een gewone webpagina: één AI-verzoek.
+// tonen, zonder iets op te slaan. Entra-adminrol vereist. Bij een gewone webpagina: één AI-verzoek.
 import { analyzeSource, parseAnalyzeRequest } from '@/lib/discovery/custom-sources';
 import { jsonError, requireAdmin } from '@/lib/http';
 import type { SourceAnalysis } from '@/lib/types';
@@ -7,7 +7,7 @@ import type { SourceAnalysis } from '@/lib/types';
 export const maxDuration = 60;
 
 export async function POST(request: Request) {
-  const denied = requireAdmin(request);
+  const denied = await requireAdmin(request);
   if (denied) return denied;
 
   const raw = await request.text();

@@ -10,7 +10,7 @@ async function readError(res: Response): Promise<string> {
   return body?.error ?? `HTTP ${res.status}`;
 }
 
-export function ExperiencesModerationPanel({ token }: { token: string }) {
+export function ExperiencesModerationPanel() {
   const [items, setItems] = useState<Experience[] | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
@@ -40,7 +40,6 @@ export function ExperiencesModerationPanel({ token }: { token: string }) {
     try {
       const res = await fetch(`/api/admin/experiences/${e.id}`, {
         method: 'DELETE',
-        headers: { Authorization: `Bearer ${token}` },
       });
       if (!res.ok) {
         setError(await readError(res));
@@ -104,7 +103,7 @@ export function ExperiencesModerationPanel({ token }: { token: string }) {
                   <button
                     type="button"
                     className={`${BTN_SECONDARY} text-alert`}
-                    disabled={!token || busyId === e.id}
+                    disabled={busyId === e.id}
                     onClick={() => remove(e)}
                   >
                     {busyId === e.id ? '…' : 'ja, verwijder'}
@@ -121,7 +120,6 @@ export function ExperiencesModerationPanel({ token }: { token: string }) {
                 <button
                   type="button"
                   className={BTN_SECONDARY}
-                  disabled={!token}
                   onClick={() => setConfirmId(e.id)}
                   aria-label={`Verwijder "${e.title}"`}
                 >

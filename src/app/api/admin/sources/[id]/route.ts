@@ -3,7 +3,7 @@ import { deleteCustomSource, isUuid } from '@/lib/discovery/custom-sources';
 import { jsonError, requireAdmin } from '@/lib/http';
 
 export async function DELETE(request: Request, ctx: RouteContext<'/api/admin/sources/[id]'>) {
-  const denied = requireAdmin(request);
+  const denied = await requireAdmin(request);
   if (denied) return denied;
 
   const { id } = await ctx.params;

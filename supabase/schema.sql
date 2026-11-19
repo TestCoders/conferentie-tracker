@@ -109,5 +109,9 @@ alter table public.discovery_sources enable row level security;
 -- Ervaringen en foto's (roadmap #3): zie migrations/20261119_experiences.sql voor de
 -- volledige definitie, inclusief de storage-bucket 'experience-photos'.
 
+-- Microsoft-identiteiten, accountgebonden bijdragen en atomische opslag:
+-- voer migrations/20261119_entra_identity.sql uit ná de ervaringenmigratie.
+
 -- AI-verrijking: zie migrations/20261119_ai_enrichment.sql (conferences.ai_checked_at,
 -- conferences.ai_fields, cost_assumptions.source en cost_assumptions.note).
+
