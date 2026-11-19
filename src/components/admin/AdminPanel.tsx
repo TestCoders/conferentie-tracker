@@ -62,13 +62,13 @@ export function AdminPanel() {
   const [loading, setLoading] = useState(false);
   const [filter, setFilter] = useState<StatusFilter>('all');
 
-  const authHeaders = { 'Content-Type': 'application/json' };
+  const jsonHeaders = { 'Content-Type': 'application/json' };
 
   async function loadConferences() {
     setLoading(true);
     setListError(null);
     try {
-      const res = await fetch('/api/admin/conferences', { headers: authHeaders });
+      const res = await fetch('/api/admin/conferences', { headers: jsonHeaders });
       if (!res.ok) {
         setListError(await readError(res));
         return;
@@ -85,7 +85,7 @@ export function AdminPanel() {
     setSourcesLoading(true);
     setSourcesError(null);
     try {
-      const res = await fetch('/api/admin/sources', { headers: authHeaders });
+      const res = await fetch('/api/admin/sources', { headers: jsonHeaders });
       if (!res.ok) {
         setSourcesError(await readError(res));
         return;
@@ -102,7 +102,7 @@ export function AdminPanel() {
     try {
       const res = await fetch('/api/admin/sources/analyze', {
         method: 'POST',
-        headers: authHeaders,
+        headers: jsonHeaders,
         body: JSON.stringify({ url } satisfies AnalyzeSourceRequest),
       });
       if (!res.ok) return await readError(res);
@@ -116,7 +116,7 @@ export function AdminPanel() {
     try {
       const res = await fetch('/api/admin/sources', {
         method: 'POST',
-        headers: authHeaders,
+        headers: jsonHeaders,
         body: JSON.stringify(input),
       });
       if (!res.ok) return await readError(res);
@@ -133,7 +133,7 @@ export function AdminPanel() {
     try {
       const res = await fetch(`/api/admin/sources/${id}`, {
         method: 'DELETE',
-        headers: authHeaders,
+        headers: jsonHeaders,
       });
       if (!res.ok) return await readError(res);
       setCustomSources((prev) => prev?.filter((s) => s.id !== id) ?? null);
@@ -151,7 +151,7 @@ export function AdminPanel() {
     try {
       const res = await fetch('/api/discovery/run', {
         method: 'POST',
-        headers: authHeaders,
+        headers: jsonHeaders,
         body: JSON.stringify(
           (source.startsWith('custom:')
             ? { sourceId: source.slice('custom:'.length) }
@@ -176,7 +176,7 @@ export function AdminPanel() {
     try {
       const res = await fetch(`/api/admin/conferences/${id}`, {
         method: 'PATCH',
-        headers: authHeaders,
+        headers: jsonHeaders,
         body: JSON.stringify(patch),
       });
       if (!res.ok) return await readError(res);

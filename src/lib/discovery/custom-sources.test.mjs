@@ -3,8 +3,14 @@ import assert from 'node:assert/strict';
 import { registerHooks } from 'node:module';
 import { after, test } from 'node:test';
 
+// Inject an Entra session at the Auth.js boundary (same pattern as auth-access.test.mjs).
 registerHooks({
   resolve(specifier, context, nextResolve) {
+    if (specifier === '@/auth')
+      return {
+        url: 'data:text/javascript,export async function auth(){return globalThis.testEntraSession ?? null}',
+        shortCircuit: true,
+      };
     if (specifier.startsWith('@/')) {
       const path = specifier === '@/lib/discovery' ? 'lib/discovery/index' : specifier.slice(2);
       return nextResolve(new URL(`../../${path}.ts`, import.meta.url).href, context);
@@ -48,10 +54,11 @@ const originalFetch = globalThis.fetch;
 const originalEnv = {
   SUPABASE_URL: process.env.SUPABASE_URL,
   SUPABASE_SERVICE_ROLE_KEY: process.env.SUPABASE_SERVICE_ROLE_KEY,
-  ADMIN_TOKEN: process.env.ADMIN_TOKEN,
+  AUTH_MICROSOFT_ENTRA_ID_ISSUER: process.env.AUTH_MICROSOFT_ENTRA_ID_ISSUER,
 };
 after(() => {
   globalThis.fetch = originalFetch;
+  delete globalThis.testEntraSession;
   for (const [key, value] of Object.entries(originalEnv)) {
     if (value === undefined) delete process.env[key];
     else process.env[key] = value;
@@ -195,7 +202,17 @@ test('custom sources with a known format run through the existing parsers', asyn
 test('custom discovery run upserts idempotently and endpoint validates sourceId', async () => {
   process.env.SUPABASE_URL = 'https://discovery-test.invalid';
   process.env.SUPABASE_SERVICE_ROLE_KEY = 'test-only-key';
-  process.env.ADMIN_TOKEN = 'test-only-admin';
+  const tenant = '11111111-1111-1111-1111-111111111111';
+  process.env.AUTH_MICROSOFT_ENTRA_ID_ISSUER = `https://login.microsoftonline.com/${tenant}/v2.0`;
+  globalThis.testEntraSession = {
+    user: {
+      id: '33333333-3333-3333-3333-333333333333',
+      name: 'TestCoders beheerder',
+      tenantId: tenant,
+      isAdmin: true,
+      authorizedUntil: Date.now() / 1000 + 100,
+    },
+  };
   const source = {
     id: SOURCE_ID,
     name: 'Python 2027',
@@ -213,6 +230,9 @@ test('custom discovery run upserts idempotently and endpoint validates sourceId'
     const url = new URL(request.url);
     if (request.url === FEED_URL) return Response.json([record]);
     assert.equal(url.origin, 'https://discovery-test.invalid');
+    if (url.pathname.endsWith('/app_users')) {
+      return Response.json({ id: '44444444-4444-4444-4444-444444444444', disabled_at: null });
+    }
     if (url.pathname.endsWith('/discovery_sources')) {
       const found = url.searchParams.get('id') === `eq.${SOURCE_ID}` ? [source] : [];
       if (request.headers.get('accept')?.includes('vnd.pgrst.object')) {
@@ -293,9 +313,15 @@ test('custom discovery run upserts idempotently and endpoint validates sourceId'
   const request = (body) =>
     new Request('https://app.test/api/discovery/run', {
       method: 'POST',
-      headers: { authorization: 'Bearer test-only-admin' },
+      headers: { origin: 'https://app.test' },
       body,
     });
+  const adminSession = globalThis.testEntraSession;
+  globalThis.testEntraSession = null;
+  assert.equal((await POST(request(`{"sourceId":"${SOURCE_ID}"}`))).status, 401);
+  globalThis.testEntraSession = { user: { ...adminSession.user, isAdmin: false } };
+  assert.equal((await POST(request(`{"sourceId":"${SOURCE_ID}"}`))).status, 403);
+  globalThis.testEntraSession = adminSession;
   for (const body of [
     '{"sourceId":"not-a-uuid"}',
     '{"sourceId":123}',
