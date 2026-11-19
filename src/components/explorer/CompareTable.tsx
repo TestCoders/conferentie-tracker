@@ -1,7 +1,24 @@
 // Eigenaar: C. Twee conferenties naast elkaar; ontbrekende velden tonen 'Onbekend'.
-import type { Conference } from '@/lib/types';
+import type { CommunityStats, Conference } from '@/lib/types';
 import { CATEGORY_LABELS, formatDate, formatDateRange, formatLocation, orUnknown } from './format';
 import { Value } from './Value';
+
+function communityRows(stats: Record<string, CommunityStats>): Row[] {
+  const get = (c: Conference) => stats[c.id];
+  return [
+    { label: 'interesse', value: (c) => String(get(c)?.interested ?? 0) },
+    { label: 'bijgewoond', value: (c) => String(get(c)?.attended ?? 0) },
+    {
+      label: 'rating',
+      value: (c) => {
+        const s = get(c);
+        return s?.averageRating != null
+          ? `★ ${s.averageRating.toFixed(1)} (${s.reviews} ${s.reviews === 1 ? 'review' : 'reviews'})`
+          : 'Nog geen reviews';
+      },
+    },
+  ];
+}
 
 type Row = { label: string; value: (c: Conference) => string };
 
@@ -17,9 +34,12 @@ const ROWS: Row[] = [
 type Props = {
   conferences: [Conference, Conference];
   onClear: () => void;
+  /** Community-tellingen per conference_id; ontbreekt bij laadfout. */
+  stats?: Record<string, CommunityStats>;
 };
 
-export function CompareTable({ conferences, onClear }: Props) {
+export function CompareTable({ conferences, onClear, stats }: Props) {
+  const rows = stats ? [...ROWS, ...communityRows(stats)] : ROWS;
   return (
     <section
       aria-labelledby="compare-heading"
@@ -64,7 +84,7 @@ export function CompareTable({ conferences, onClear }: Props) {
             </tr>
           </thead>
           <tbody>
-            {ROWS.map((row) => (
+            {rows.map((row) => (
               <tr key={row.label} className="border-hairline border-b last:border-0">
                 <th scope="row" className="text-ink-muted py-2 pr-3 font-mono text-xs font-normal">
                   {row.label}

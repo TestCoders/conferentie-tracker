@@ -1,4 +1,5 @@
 // Eigenaar: C. Compacte lijstweergave: één rij per conferentie, goed verticaal te scannen.
+import type { ReactNode } from 'react';
 import type { Conference } from '@/lib/types';
 import { CATEGORY_LABELS, dateParts, formatDate, formatDateRange, formatLocation } from './format';
 import { CATEGORY_STYLES } from './category-styles';
@@ -9,9 +10,17 @@ type Props = {
   selected: boolean;
   selectDisabled: boolean;
   onToggleSelect: (id: string) => void;
+  /** Badge met deelnemers/rating (klapt het community-paneel open). */
+  community?: ReactNode;
 };
 
-export function ConferenceRow({ conference: c, selected, selectDisabled, onToggleSelect }: Props) {
+export function ConferenceRow({
+  conference: c,
+  selected,
+  selectDisabled,
+  onToggleSelect,
+  community,
+}: Props) {
   const checkboxId = `compare-row-${c.id}`;
   const { day, month, year } = dateParts(c.start_date);
 
@@ -79,23 +88,26 @@ export function ConferenceRow({ conference: c, selected, selectDisabled, onToggl
         )}
       </div>
 
-      <label
-        htmlFor={checkboxId}
-        className={`flex items-center gap-2 font-mono text-xs ${
-          selectDisabled ? 'opacity-40' : 'cursor-pointer'
-        }`}
-      >
-        <input
-          id={checkboxId}
-          type="checkbox"
-          className="accent-signal size-4"
-          checked={selected}
-          disabled={selectDisabled}
-          onChange={() => onToggleSelect(c.id)}
-        />
-        <span className="hidden md:inline">vergelijk</span>
-        <span className="sr-only md:hidden">Vergelijk {c.name}</span>
-      </label>
+      <div className="flex flex-col items-end gap-2 sm:flex-row sm:items-center sm:gap-3">
+        {community}
+        <label
+          htmlFor={checkboxId}
+          className={`flex items-center gap-2 font-mono text-xs ${
+            selectDisabled ? 'opacity-40' : 'cursor-pointer'
+          }`}
+        >
+          <input
+            id={checkboxId}
+            type="checkbox"
+            className="accent-signal size-4"
+            checked={selected}
+            disabled={selectDisabled}
+            onChange={() => onToggleSelect(c.id)}
+          />
+          <span className="hidden md:inline">vergelijk</span>
+          <span className="sr-only md:hidden">Vergelijk {c.name}</span>
+        </label>
+      </div>
     </div>
   );
 }
