@@ -2,7 +2,7 @@
 
 Automatisch ontdekken, vergelijken en beoordelen van conferenties over development, softwaretesten en testautomatisering.
 
-- Plan en scope: [HACKATHON_PLAN.md](HACKATHON_PLAN.md)
+- Plan, status en todo's: [plan.md](plan.md)
 - Werkafspraken, branches en coding standard: [AGENTS.md](AGENTS.md)
 
 ## Snel starten
