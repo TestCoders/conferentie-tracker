@@ -23,6 +23,17 @@ export function formatDate(value: string | null): string {
   return Number.isNaN(date.getTime()) ? value : dateFormatter.format(date);
 }
 
+/** 'YYYY-MM-DD' → { day: '12', month: 'mrt', year: '2027' } voor een compact datumblok. */
+export function dateParts(value: string): { day: string; month: string; year: string } {
+  const date = new Date(`${value}T00:00:00Z`);
+  if (Number.isNaN(date.getTime())) return { day: '?', month: '', year: '' };
+  return {
+    day: String(date.getUTCDate()),
+    month: date.toLocaleDateString('nl-NL', { month: 'short', timeZone: 'UTC' }).replace('.', ''),
+    year: String(date.getUTCFullYear()),
+  };
+}
+
 export function formatDateRange(c: Pick<Conference, 'start_date' | 'end_date'>): string {
   if (!c.end_date || c.end_date === c.start_date) return formatDate(c.start_date);
   return `${formatDate(c.start_date)} – ${formatDate(c.end_date)}`;

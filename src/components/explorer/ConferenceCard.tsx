@@ -1,6 +1,8 @@
 // Eigenaar: C.
 import type { Conference } from '@/lib/types';
 import { CATEGORY_LABELS, formatDate, formatDateRange, formatLocation } from './format';
+import { CATEGORY_STYLES } from './category-styles';
+import { Value } from './Value';
 
 type Props = {
   conference: Conference;
@@ -9,78 +11,84 @@ type Props = {
   onToggleSelect: (id: string) => void;
 };
 
-const CATEGORY_STYLES: Record<Conference['category'], string> = {
-  development: 'bg-sky-100 text-sky-800 dark:bg-sky-900/40 dark:text-sky-200',
-  testing: 'bg-amber-100 text-amber-800 dark:bg-amber-900/40 dark:text-amber-200',
-  'test-automation': 'bg-emerald-100 text-emerald-800 dark:bg-emerald-900/40 dark:text-emerald-200',
-};
+const LABEL = 'font-mono text-xs leading-5 text-ink-muted';
 
 export function ConferenceCard({ conference: c, selected, selectDisabled, onToggleSelect }: Props) {
   const checkboxId = `compare-${c.id}`;
 
   return (
     <article
-      className={`flex h-full flex-col rounded-xl border p-4 transition-shadow hover:shadow-md ${
-        selected
-          ? 'border-indigo-500 ring-2 ring-indigo-500/30'
-          : 'border-black/10 dark:border-white/15'
+      className={`bg-surface flex h-full flex-col rounded-md border p-4 transition hover:-translate-y-0.5 hover:shadow-md ${
+        selected ? 'border-signal ring-signal/30 ring-2' : 'border-hairline'
       }`}
     >
       <div className="flex items-start justify-between gap-3">
-        <h2 className="text-lg leading-snug font-semibold">{c.name}</h2>
+        <h2 className="font-display text-lg leading-snug font-semibold">{c.name}</h2>
         <span
-          className={`shrink-0 rounded-full px-2 py-0.5 text-xs font-medium ${CATEGORY_STYLES[c.category]}`}
+          className={`shrink-0 rounded px-2 py-0.5 font-mono text-[11px] font-semibold ${CATEGORY_STYLES[c.category]}`}
         >
           {CATEGORY_LABELS[c.category]}
         </span>
       </div>
 
-      <dl className="mt-3 grid grid-cols-[auto_1fr] gap-x-3 gap-y-1 text-sm">
-        <dt className="text-black/60 dark:text-white/60">Datum</dt>
+      <dl className="mt-3 mb-4 grid grid-cols-[auto_1fr] gap-x-3 gap-y-1 text-sm">
+        <dt className={LABEL}>datum</dt>
         <dd>{formatDateRange(c)}</dd>
-        <dt className="text-black/60 dark:text-white/60">Locatie</dt>
-        <dd>{formatLocation(c)}</dd>
-        <dt className="text-black/60 dark:text-white/60">CFP</dt>
+        <dt className={LABEL}>locatie</dt>
+        <dd>
+          <Value text={formatLocation(c)} />
+        </dd>
+        <dt className={LABEL}>cfp</dt>
         <dd>
           {c.cfp_url ? (
-            <a className="underline" href={c.cfp_url} target="_blank" rel="noopener noreferrer">
-              {formatDate(c.cfp_deadline)}
+            <a
+              className="text-signal hover:underline"
+              href={c.cfp_url}
+              target="_blank"
+              rel="noopener noreferrer"
+            >
+              {c.cfp_deadline ? formatDate(c.cfp_deadline) : 'Call for papers'}
             </a>
           ) : (
-            formatDate(c.cfp_deadline)
+            <Value text={formatDate(c.cfp_deadline)} />
           )}
         </dd>
       </dl>
 
-      <div className="mt-auto flex flex-wrap items-center justify-between gap-3 pt-4 text-sm">
+      <div className="border-hairline mt-auto flex flex-wrap items-center justify-between gap-3 border-t pt-3 text-sm">
         <div className="flex gap-3">
           <a
-            className="font-medium text-indigo-700 underline dark:text-indigo-300"
+            className="text-signal font-semibold hover:underline"
             href={c.official_url}
             target="_blank"
             rel="noopener noreferrer"
           >
-            Website
+            Website →
           </a>
           <a
-            className="text-black/60 underline dark:text-white/60"
+            className={`${LABEL} hover:underline`}
             href={c.source_url}
             target="_blank"
             rel="noopener noreferrer"
           >
-            Bron: {c.source_name}
+            bron: {c.source_name}
           </a>
         </div>
-        <label htmlFor={checkboxId} className="flex cursor-pointer items-center gap-2">
+        <label
+          htmlFor={checkboxId}
+          className={`flex items-center gap-2 font-mono text-xs ${
+            selectDisabled ? 'opacity-40' : 'cursor-pointer'
+          }`}
+        >
           <input
             id={checkboxId}
             type="checkbox"
-            className="size-4 accent-indigo-600"
+            className="accent-signal size-4"
             checked={selected}
             disabled={selectDisabled}
             onChange={() => onToggleSelect(c.id)}
           />
-          Vergelijk
+          vergelijk
         </label>
       </div>
     </article>

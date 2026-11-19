@@ -1,26 +1,90 @@
 @import 'tailwindcss';
 
-:root {
-  --background: #ffffff;
-  --foreground: #171717;
+/* Thema via data-theme op <html> (gezet door inline script in layout.tsx). */
+@custom-variant dark (&:where([data-theme='dark'], [data-theme='dark'] *));
+
+/* Kleurtokens overgenomen van testcoders.nl. */
+:root,
+[data-theme='light'] {
+  --void: #f7f4ef;
+  --surface: #ffffff;
+  --glass: #efeae1;
+  --titlebar: #ece7df;
+  --ink: #1c1a18;
+  --ink-soft: #56524d;
+  --ink-muted: #6f6961;
+  --signal: #0a57a4;
+  --signal-glow: #dce9f7;
+  --alert: #e8402a;
+  --adopt: #2e8f57;
+  --assess: #b26a00;
+  --hairline: #14121014;
+  color-scheme: light;
+}
+
+[data-theme='dark'] {
+  --void: #141210;
+  --surface: #1c1a18;
+  --glass: #242220;
+  --titlebar: #1c1a18;
+  --ink: #f0ede8;
+  --ink-soft: #9e9c98;
+  --ink-muted: #858179;
+  --signal: #4a8fd4;
+  --signal-glow: #1a3f6f;
+  --alert: #e8402a;
+  --adopt: #3daa6a;
+  --assess: #c77700;
+  --hairline: #ffffff1f;
+  color-scheme: dark;
 }
 
 @theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
-}
-
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
+  --color-void: var(--void);
+  --color-surface: var(--surface);
+  --color-glass: var(--glass);
+  --color-titlebar: var(--titlebar);
+  --color-ink: var(--ink);
+  --color-ink-soft: var(--ink-soft);
+  --color-ink-muted: var(--ink-muted);
+  --color-signal: var(--signal);
+  --color-signal-glow: var(--signal-glow);
+  --color-alert: var(--alert);
+  --color-adopt: var(--adopt);
+  --color-assess: var(--assess);
+  --color-hairline: var(--hairline);
+  --font-sans: var(--font-open-sans), system-ui, sans-serif;
+  --font-display: var(--font-poppins), system-ui, sans-serif;
+  --font-mono: var(--font-jetbrains-mono), ui-monospace, monospace;
 }
 
 body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  background: var(--void);
+  color: var(--ink);
+}
+
+/* Native dropdown-opties volgen het thema (anders wit-op-wit in dark mode). */
+select option {
+  background-color: var(--surface);
+  color: var(--ink);
+}
+
+/* Knipperende terminal-cursor achter koppen. */
+.terminal-cursor::after {
+  content: '▋';
+  margin-left: 0.1em;
+  color: var(--signal);
+  animation: terminal-blink 1s steps(1) infinite;
+}
+
+@keyframes terminal-blink {
+  50% {
+    opacity: 0;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .terminal-cursor::after {
+    animation: none;
+  }
 }

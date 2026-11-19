@@ -1,14 +1,20 @@
 'use client';
-// Eigenaar: C. Publiek overzicht: zoeken, filteren, sorteren en 2 conferenties vergelijken.
+// Eigenaar: C. Publiek overzicht: zoeken, filteren, sorteren, lijst/kaarten en 2 vergelijken.
 import { useEffect, useMemo, useState } from 'react';
 import { CATEGORIES, type Category, type Conference, type ListResponse } from '@/lib/types';
 import { CompareTable } from './CompareTable';
 import { ConferenceCard } from './ConferenceCard';
+import { ConferenceRow } from './ConferenceRow';
 import { CATEGORY_LABELS } from './format';
 
 const MAX_COMPARE = 2;
 
 type SortOrder = 'asc' | 'desc';
+type ViewMode = 'list' | 'cards';
+
+const FIELD =
+  'rounded-md border border-hairline bg-surface px-3 py-2 font-sans text-sm text-ink focus:ring-2 focus:ring-signal focus:outline-none';
+const FIELD_LABEL = 'flex flex-col gap-1 font-mono text-xs text-ink-muted';
 
 export function Explorer() {
   const [items, setItems] = useState<Conference[] | null>(null);
@@ -16,6 +22,7 @@ export function Explorer() {
   const [query, setQuery] = useState('');
   const [category, setCategory] = useState<Category | 'all'>('all');
   const [sortOrder, setSortOrder] = useState<SortOrder>('asc');
+  const [view, setView] = useState<ViewMode>('list');
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
 
   useEffect(() => {
@@ -66,7 +73,7 @@ export function Explorer() {
 
   if (error) {
     return (
-      <p role="alert" className="text-red-600">
+      <p role="alert" className="text-alert">
         Kon conferenties niet laden: {error}
       </p>
     );
@@ -85,52 +92,91 @@ export function Explorer() {
         <CompareTable conferences={[selected[0], selected[1]]} onClear={() => setSelectedIds([])} />
       ) : null}
 
-      <div className="mb-6 flex flex-col gap-3 sm:flex-row sm:items-end">
-        <label className="flex flex-1 flex-col gap-1 text-sm font-medium">
-          Zoek op naam
-          <input
-            type="search"
-            value={query}
-            onChange={(e) => setQuery(e.target.value)}
-            placeholder="Bijv. JSConf"
-            className="rounded-md border border-black/15 bg-transparent px-3 py-2 font-normal dark:border-white/20"
-          />
-        </label>
-        <label className="flex flex-col gap-1 text-sm font-medium">
-          Categorie
-          <select
-            value={category}
-            onChange={(e) => setCategory(e.target.value as Category | 'all')}
-            className="rounded-md border border-black/15 bg-transparent px-3 py-2 font-normal dark:border-white/20"
-          >
-            <option value="all">Alle ({items.length})</option>
-            {CATEGORIES.map((cat) => (
-              <option key={cat} value={cat}>
-                {CATEGORY_LABELS[cat]} ({counts[cat]})
-              </option>
-            ))}
-          </select>
-        </label>
-        <label className="flex flex-col gap-1 text-sm font-medium">
-          Sorteer op begindatum
-          <select
-            value={sortOrder}
-            onChange={(e) => setSortOrder(e.target.value as SortOrder)}
-            className="rounded-md border border-black/15 bg-transparent px-3 py-2 font-normal dark:border-white/20"
-          >
-            <option value="asc">Eerstvolgende eerst</option>
-            <option value="desc">Laatste eerst</option>
-          </select>
-        </label>
+      <div className="border-hairline bg-void/90 sticky top-[61px] z-[5] -mx-4 mb-4 border-b px-4 py-3 backdrop-blur">
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-end">
+          <label className={`${FIELD_LABEL} flex-1`}>
+            --zoek
+            <input
+              type="search"
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+              placeholder="Bijv. JSConf"
+              className={FIELD}
+            />
+          </label>
+          <label className={FIELD_LABEL}>
+            --categorie
+            <select
+              value={category}
+              onChange={(e) => setCategory(e.target.value as Category | 'all')}
+              className={FIELD}
+            >
+              <option value="all">Alle ({items.length})</option>
+              {CATEGORIES.map((cat) => (
+                <option key={cat} value={cat}>
+                  {CATEGORY_LABELS[cat]} ({counts[cat]})
+                </option>
+              ))}
+            </select>
+          </label>
+          <label className={FIELD_LABEL}>
+            --sort
+            <select
+              value={sortOrder}
+              onChange={(e) => setSortOrder(e.target.value as SortOrder)}
+              className={FIELD}
+            >
+              <option value="asc">Eerstvolgende eerst</option>
+              <option value="desc">Laatste eerst</option>
+            </select>
+          </label>
+          <div className={FIELD_LABEL}>
+            <span id="view-label">--weergave</span>
+            <div
+              role="group"
+              aria-labelledby="view-label"
+              className="border-hairline bg-surface flex rounded-md border p-0.5"
+            >
+              {(['list', 'cards'] as const).map((mode) => (
+                <button
+                  key={mode}
+                  type="button"
+                  aria-pressed={view === mode}
+                  onClick={() => setView(mode)}
+                  className={`rounded px-3 py-1.5 font-sans text-sm transition-colors ${
+                    view === mode ? 'bg-signal text-white' : 'text-ink-soft hover:text-ink'
+                  }`}
+                >
+                  {mode === 'list' ? '☰ Lijst' : '▦ Kaarten'}
+                </button>
+              ))}
+            </div>
+          </div>
+        </div>
+        <p className="text-ink-muted mt-2 font-mono text-xs" aria-live="polite">
+          <span className="text-adopt">✓</span> {visible.length} van {items.length} conferenties
+          {selected.length === 1 ? ' · selecteer nog 1 om te vergelijken' : ''}
+        </p>
       </div>
-
-      <p className="mb-4 text-sm text-black/60 dark:text-white/60" aria-live="polite">
-        {visible.length} van {items.length} conferenties
-        {selected.length === 1 ? ' · selecteer nog 1 conferentie om te vergelijken' : ''}
-      </p>
 
       {visible.length === 0 ? (
         <p>Geen conferenties gevonden voor deze zoekopdracht.</p>
+      ) : view === 'list' ? (
+        <ul className="divide-hairline border-hairline bg-surface divide-y overflow-hidden rounded-md border">
+          {visible.map((c) => {
+            const isSelected = selectedIds.includes(c.id);
+            return (
+              <li key={c.id}>
+                <ConferenceRow
+                  conference={c}
+                  selected={isSelected}
+                  selectDisabled={!isSelected && selectedIds.length >= MAX_COMPARE}
+                  onToggleSelect={toggleSelect}
+                />
+              </li>
+            );
+          })}
+        </ul>
       ) : (
         <ul className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
           {visible.map((c) => {

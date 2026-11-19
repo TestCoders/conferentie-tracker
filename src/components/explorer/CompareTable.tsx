@@ -1,16 +1,17 @@
 // Eigenaar: C. Twee conferenties naast elkaar; ontbrekende velden tonen 'Onbekend'.
 import type { Conference } from '@/lib/types';
 import { CATEGORY_LABELS, formatDate, formatDateRange, formatLocation, orUnknown } from './format';
+import { Value } from './Value';
 
 type Row = { label: string; value: (c: Conference) => string };
 
 const ROWS: Row[] = [
-  { label: 'Datum', value: formatDateRange },
-  { label: 'Locatie', value: formatLocation },
-  { label: 'Categorie', value: (c) => CATEGORY_LABELS[c.category] },
-  { label: 'CFP-deadline', value: (c) => formatDate(c.cfp_deadline) },
-  { label: 'Prijs', value: (c) => orUnknown(c.price_text) },
-  { label: 'Bron', value: (c) => c.source_name },
+  { label: 'datum', value: formatDateRange },
+  { label: 'locatie', value: formatLocation },
+  { label: 'categorie', value: (c) => CATEGORY_LABELS[c.category] },
+  { label: 'cfp-deadline', value: (c) => formatDate(c.cfp_deadline) },
+  { label: 'prijs', value: (c) => orUnknown(c.price_text) },
+  { label: 'bron', value: (c) => c.source_name },
 ];
 
 type Props = {
@@ -22,34 +23,36 @@ export function CompareTable({ conferences, onClear }: Props) {
   return (
     <section
       aria-labelledby="compare-heading"
-      className="mb-8 rounded-xl border border-indigo-500/40 bg-indigo-50/50 p-4 dark:bg-indigo-950/20"
+      className="border-hairline bg-surface mb-8 overflow-hidden rounded-md border shadow-sm"
     >
-      <div className="mb-3 flex items-center justify-between gap-3">
-        <h2 id="compare-heading" className="text-lg font-semibold">
-          Vergelijking
-        </h2>
+      <div className="bg-titlebar flex items-center justify-between gap-3 px-4 py-2">
+        <div className="flex items-center gap-2">
+          <span aria-hidden="true" className="bg-alert size-3 rounded-full" />
+          <span aria-hidden="true" className="bg-assess size-3 rounded-full" />
+          <span aria-hidden="true" className="bg-adopt size-3 rounded-full" />
+          <h2 id="compare-heading" className="text-ink-soft ml-2 font-mono text-sm">
+            <span className="sr-only">Vergelijking: </span>$ diff conferentie-a conferentie-b
+          </h2>
+        </div>
         <button
           type="button"
           onClick={onClear}
-          className="rounded-md border border-black/15 px-3 py-1 text-sm hover:bg-black/5 dark:border-white/20 dark:hover:bg-white/10"
+          className="text-ink-soft hover:bg-glass hover:text-ink rounded-md px-2 py-0.5 font-mono text-xs"
         >
-          Wis selectie
+          wis selectie ✕
         </button>
       </div>
-      <div className="overflow-x-auto">
+      <div className="overflow-x-auto p-4">
         <table className="w-full min-w-[32rem] text-left text-sm">
           <thead>
-            <tr className="border-b border-black/10 dark:border-white/15">
-              <th
-                scope="col"
-                className="w-32 py-2 pr-3 font-medium text-black/60 dark:text-white/60"
-              >
+            <tr className="border-hairline border-b">
+              <th scope="col" className="w-32 py-2 pr-3">
                 <span className="sr-only">Kenmerk</span>
               </th>
               {conferences.map((c) => (
-                <th key={c.id} scope="col" className="py-2 pr-3 font-semibold">
+                <th key={c.id} scope="col" className="font-display py-2 pr-3 font-semibold">
                   <a
-                    className="underline"
+                    className="text-signal hover:underline"
                     href={c.official_url}
                     target="_blank"
                     rel="noopener noreferrer"
@@ -62,16 +65,13 @@ export function CompareTable({ conferences, onClear }: Props) {
           </thead>
           <tbody>
             {ROWS.map((row) => (
-              <tr
-                key={row.label}
-                className="border-b border-black/5 last:border-0 dark:border-white/10"
-              >
-                <th scope="row" className="py-2 pr-3 font-medium text-black/60 dark:text-white/60">
+              <tr key={row.label} className="border-hairline border-b last:border-0">
+                <th scope="row" className="text-ink-muted py-2 pr-3 font-mono text-xs font-normal">
                   {row.label}
                 </th>
                 {conferences.map((c) => (
                   <td key={c.id} className="py-2 pr-3">
-                    {row.value(c)}
+                    <Value text={row.value(c)} />
                   </td>
                 ))}
               </tr>
