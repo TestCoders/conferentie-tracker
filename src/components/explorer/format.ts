@@ -43,6 +43,18 @@ export function formatLocation(c: Pick<Conference, 'city' | 'country'>): string 
   return [c.city, c.country].filter(Boolean).join(', ') || UNKNOWN;
 }
 
+/** Is de conferentie al voorbij (laatste dag vóór vandaag)? */
+export function isPast(
+  c: Pick<Conference, 'start_date' | 'end_date'>,
+  today = todayIso(),
+): boolean {
+  return (c.end_date ?? c.start_date) < today;
+}
+
+export function todayIso(): string {
+  return new Date().toISOString().slice(0, 10);
+}
+
 export function orUnknown(value: string | null): string {
   return value ?? UNKNOWN;
 }

@@ -50,23 +50,56 @@ function downloadIcs(c: Conference) {
 
 const covers = (start: string, end: string, day: string) => start <= day && day <= end;
 
-export function AgendaView({ conferences }: { conferences: Conference[] }) {
-  const firstMonth = useMemo(
+/** Maandbereik van de agenda: startmaand 'YYYY-MM' en aantal maanden. */
+export type AgendaRange = { start: string; months: number };
+
+/** Eerste maand om te openen: deze maand als die in het bereik valt, anders de eerste met conferenties. */
+function initialMonth(range: AgendaRange, conferences: Conference[]): string {
+  const thisMonth = new Date().toISOString().slice(0, 7);
+  const last = addMonths(range.start, range.months - 1);
+  if (thisMonth >= range.start && thisMonth <= last) return thisMonth;
+  const first = conferences
+    .map((c) => c.start_date.slice(0, 7))
+    .filter((m) => m >= range.start && m <= last)
+    .sort()[0];
+  return first ?? range.start;
+}
+
+export function AgendaView({
+  conferences,
+  range: rangeProp,
+}: {
+  conferences: Conference[];
+  range?: AgendaRange;
+}) {
+  const fallbackStart = useMemo(
     () =>
       conferences
         .reduce((min, c) => (c.start_date < min ? c.start_date : min), '9999-12')
         .slice(0, 7),
     [conferences],
   );
-  const [month, setMonth] = useState(firstMonth);
+  const range = rangeProp ?? { start: fallbackStart, months: MONTHS_SHOWN };
+  const firstMonth = range.start;
+  const rangeKey = `${range.start}/${range.months}`;
+
+  const [month, setMonth] = useState(() => initialMonth(range, conferences));
   const [pickedDay, setPickedDay] = useState<string | null>(null);
+  // Ander bereik (periode/jaar gewisseld): maand en gekozen dag opnieuw bepalen, eigen agenda behouden.
+  const [seenRange, setSeenRange] = useState(rangeKey);
+  if (seenRange !== rangeKey) {
+    setSeenRange(rangeKey);
+    setMonth(initialMonth(range, conferences));
+    setPickedDay(null);
+  }
   const [own, setOwn] = useState<CalendarEvent[]>([]);
   const [ownFile, setOwnFile] = useState<string | null>(null);
   const [ownError, setOwnError] = useState<string | null>(null);
 
+  const monthCount = range.months;
   const months = useMemo(
-    () => Array.from({ length: MONTHS_SHOWN }, (_, i) => addMonths(firstMonth, i)),
-    [firstMonth],
+    () => Array.from({ length: monthCount }, (_, i) => addMonths(firstMonth, i)),
+    [firstMonth, monthCount],
   );
 
   const perMonth = useMemo(() => {
@@ -160,7 +193,8 @@ export function AgendaView({ conferences }: { conferences: Conference[] }) {
       {/* Drukte per maand */}
       <section aria-labelledby="months-heading" className="mb-6">
         <h2 id="months-heading" className="text-ink-muted mb-2 font-mono text-xs">
-          drukte per maand · klik om te openen
+          drukte per maand · {monthLabel(months[0], 'long')} t/m{' '}
+          {monthLabel(months[months.length - 1], 'long')} · klik om te openen
         </h2>
         <div className="grid grid-cols-4 gap-2 sm:grid-cols-6 lg:grid-cols-12">
           {months.map((m) => {
