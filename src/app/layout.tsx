@@ -1,6 +1,7 @@
 import type { Metadata } from 'next';
 import { JetBrains_Mono, Open_Sans, Poppins } from 'next/font/google';
 import { SiteHeader } from '@/components/site/SiteHeader';
+import { AuthProvider } from '@/components/auth/AuthProvider';
 import './globals.css';
 
 const poppins = Poppins({
@@ -39,8 +40,10 @@ export default function RootLayout({ children }: LayoutProps<'/'>) {
         <script dangerouslySetInnerHTML={{ __html: themeScript }} />
       </head>
       <body className="flex min-h-full flex-col font-sans">
-        <SiteHeader />
-        {children}
+        <AuthProvider>
+          <SiteHeader />
+          {children}
+        </AuthProvider>
       </body>
     </html>
   );

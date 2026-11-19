@@ -3,6 +3,7 @@ import Image from 'next/image';
 import Link from 'next/link';
 import { ThemeToggle } from '@/components/explorer/ThemeToggle';
 import { SiteNav } from './SiteNav';
+import { AuthControls } from '@/components/auth/AuthControls';
 
 export function SiteHeader() {
   return (
@@ -34,6 +35,7 @@ export function SiteHeader() {
         <div className="flex min-w-0 items-center gap-2">
           <SiteNav />
           <ThemeToggle />
+          <AuthControls />
         </div>
       </div>
     </header>

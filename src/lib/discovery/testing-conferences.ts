@@ -50,7 +50,10 @@ export function parseTestingDates(
   return { start_date: startDate, end_date: endDate };
 }
 
-function parseLocation(value: unknown): Pick<ConferenceInput, 'city' | 'country' | 'online_only'> {
+/** "Stad, Land", "Online", "TBA" of "X and Online" (hybride). Ook gebruikt door eigen bronnen. */
+export function parseLocation(
+  value: unknown,
+): Pick<ConferenceInput, 'city' | 'country' | 'online_only'> {
   const text = readText(value, 'location');
   // Alleen 'Online' is online-only; 'X and Online' is hybride en houdt zijn fysieke plaats.
   if (text && /^online$/i.test(text)) return { city: null, country: null, online_only: true };

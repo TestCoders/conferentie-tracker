@@ -1,11 +1,12 @@
 // Eigenaar: D. GET ?conferenceId=<uuid> en POST — server-side validatie, geen directe DB-schrijfrechten.
 import { jsonError } from '@/lib/http';
+import { requireUser } from '@/lib/auth-access';
+import { saveContribution } from '@/lib/contributions';
 import { getSupabaseAdmin } from '@/lib/supabase-admin';
 import type { CreateReviewRequest, Review, ReviewsResponse } from '@/lib/types';
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-const REVIEW_COLUMNS = 'id,conference_id,reviewer_name,rating,comment,created_at';
-const NAME_MAX = 80;
+const REVIEW_COLUMNS = 'id,user_id,conference_id,reviewer_name,rating,comment,created_at';
 const COMMENT_MAX = 1000;
 const LIST_LIMIT = 100;
 
@@ -47,16 +48,14 @@ function parseReview(body: unknown): Required<CreateReviewRequest> {
   if (typeof body !== 'object' || body === null || Array.isArray(body)) {
     throw new Error('Body moet een JSON-object zijn');
   }
-  const { conferenceId, reviewerName, rating, comment } = body as Record<string, unknown>;
+  const fields = body as Record<string, unknown>;
+  if (Object.keys(fields).some((key) => !['conferenceId', 'rating', 'comment'].includes(key))) {
+    throw new Error('Alleen conferenceId, rating en comment zijn toegestaan');
+  }
+  const { conferenceId, rating, comment } = fields;
 
   if (typeof conferenceId !== 'string' || !UUID_RE.test(conferenceId)) {
     throw new Error('conferenceId moet een geldige UUID zijn');
-  }
-  if (typeof reviewerName !== 'string' || reviewerName.trim() === '') {
-    throw new Error('reviewerName is verplicht');
-  }
-  if (reviewerName.trim().length > NAME_MAX) {
-    throw new Error(`reviewerName mag maximaal ${NAME_MAX} tekens zijn`);
   }
   if (typeof rating !== 'number' || !Number.isInteger(rating) || rating < 1 || rating > 5) {
     throw new Error('rating moet een geheel getal van 1 t/m 5 zijn');
@@ -71,47 +70,28 @@ function parseReview(body: unknown): Required<CreateReviewRequest> {
 
   return {
     conferenceId,
-    reviewerName: reviewerName.trim(),
     rating,
     comment: trimmedComment === '' ? null : trimmedComment,
   };
 }
 
 export async function POST(request: Request) {
+  const access = await requireUser(request);
+  if (access.response) return access.response;
   let input: Required<CreateReviewRequest>;
   try {
-    const body: unknown = await request.json();
+    const raw = await request.text();
+    if (raw.length > 4000) return jsonError('Requestbody is te groot', 400);
+    const body: unknown = JSON.parse(raw);
     input = parseReview(body);
   } catch (err) {
     return jsonError(err instanceof Error ? err.message : 'Ongeldige body', 400);
   }
 
   try {
-    const db = getSupabaseAdmin();
-
-    // Alleen reviews op bestaande, goedgekeurde conferenties.
-    const conf = await db
-      .from('conferences')
-      .select('id')
-      .eq('id', input.conferenceId)
-      .eq('status', 'approved')
-      .maybeSingle();
-    if (conf.error) return jsonError(conf.error.message, 500);
-    if (!conf.data) return jsonError('Conferentie niet gevonden', 404);
-
-    const { data, error } = await db
-      .from('reviews')
-      .insert({
-        conference_id: input.conferenceId,
-        reviewer_name: input.reviewerName,
-        rating: input.rating,
-        comment: input.comment,
-      })
-      .select(REVIEW_COLUMNS)
-      .single();
-
-    if (error) return jsonError(error.message, 500);
-    return Response.json(data as Review, { status: 201 });
+    const saved = await saveContribution(access.user, input);
+    if (saved.response) return saved.response;
+    return Response.json(saved.data.review, { status: 201 });
   } catch (err) {
     return jsonError(err instanceof Error ? err.message : 'Unknown error', 500);
   }

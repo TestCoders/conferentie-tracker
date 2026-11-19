@@ -1,9 +1,10 @@
-// Eigenaar: B. POST /api/discovery/run — beveiligd met ADMIN_TOKEN.
+// Eigenaar: B. POST /api/discovery/run — beveiligd met de Entra-adminrol.
 // Body: { "source": "<vaste bron>" } of { "sourceId": "<uuid van een eigen bron>" }.
 import { runCustomDiscovery, runDiscovery, SourceNotFoundError } from '@/lib/discovery';
 import { isUuid } from '@/lib/discovery/custom-sources';
 import { refreshConferenceImages } from '@/lib/discovery/images';
 import { getSupabaseAdmin } from '@/lib/supabase-admin';
+
 import { jsonError, requireAdmin } from '@/lib/http';
 import { DISCOVERY_SOURCES, type DiscoveryRunResponse, type DiscoverySource } from '@/lib/types';
 
@@ -21,7 +22,7 @@ async function withImages(result: DiscoveryRunResponse): Promise<DiscoveryRunRes
 }
 
 export async function POST(request: Request) {
-  const denied = requireAdmin(request);
+  const denied = await requireAdmin(request);
   if (denied) return denied;
 
   const raw = await request.text();

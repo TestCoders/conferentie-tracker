@@ -1,5 +1,6 @@
 // GET ?conferenceId=<uuid>&id=<uuid> en POST — ervaringen (verslagen) delen, server-side gevalideerd.
-// Geen login: auteursnaam is zelf opgegeven en publiek zichtbaar.
+// Nieuwe auteurs en eigendom worden uitsluitend uit de Microsoft-sessie bepaald.
+import { requireUser } from '@/lib/auth-access';
 import { connection } from 'next/server';
 import { loadExperiences, newEditToken } from '@/lib/experiences-server';
 import { jsonError } from '@/lib/http';
@@ -111,7 +112,6 @@ type Parsed = {
   conferenceName: string | null;
   conferenceDate: string | null;
   conferenceCity: string | null;
-  authorName: string;
   title: string;
   summary: string;
   report: string | null;
@@ -128,7 +128,6 @@ const ALLOWED: (keyof CreateExperienceRequest)[] = [
   'conferenceName',
   'conferenceDate',
   'conferenceCity',
-  'authorName',
   'title',
   'summary',
   'report',
@@ -181,7 +180,6 @@ function parse(body: unknown): Parsed {
     conferenceName,
     conferenceDate: validDate(oneLine(f.conferenceDate, 'Datum', 10), 'Datum'),
     conferenceCity: oneLine(f.conferenceCity, 'Stad', 100),
-    authorName: oneLine(f.authorName, 'Naam', 80, true),
     title: oneLine(f.title, 'Titel', 120, true),
     summary: text(f.summary, 'Samenvatting', 500, true),
     report: text(f.report, 'Verslag', 8000),
@@ -195,6 +193,8 @@ function parse(body: unknown): Parsed {
 }
 
 export async function POST(request: Request) {
+  const access = await requireUser(request);
+  if (access.response) return access.response;
   let input: Parsed;
   try {
     const raw = await request.text();
@@ -236,7 +236,8 @@ export async function POST(request: Request) {
         conference_name: conferenceName,
         conference_date: conferenceDate,
         conference_city: conferenceCity,
-        author_name: input.authorName,
+        author_name: access.user.display_name,
+        user_id: access.user.id,
         title: input.title,
         summary: input.summary,
         report: input.report,

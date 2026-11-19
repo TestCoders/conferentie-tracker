@@ -1,10 +1,10 @@
-// Eigenaar: D. GET /api/admin/conferences — alle statussen, admin-token vereist.
+// Eigenaar: D. GET /api/admin/conferences — alle statussen, Entra-adminrol vereist.
 import { jsonError, requireAdmin } from '@/lib/http';
 import { getSupabaseAdmin } from '@/lib/supabase-admin';
 import { CONFERENCE_COLUMNS, type Conference, type ListResponse } from '@/lib/types';
 
 export async function GET(request: Request) {
-  const denied = requireAdmin(request);
+  const denied = await requireAdmin(request);
   if (denied) return denied;
 
   try {

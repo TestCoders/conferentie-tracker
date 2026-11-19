@@ -11,6 +11,11 @@ const TEST_AUTOMATION =
 const TESTING =
   /\btest(s|ing|ers?|bash|con|conf|js|ops)?\b|\w+test(conf|con|fest)\b|\bqa\b|\bquality[\s-]+(assurance|engineering)\b|\bsoftware[\s-]+quality\b|\bstar(east|west|canada)\b|\beurostar\b/i;
 
+/** Noemt de naam expliciet testen, kwaliteit of testautomatisering? */
+export function mentionsTesting(name: string): boolean {
+  return TEST_AUTOMATION.test(name) || TESTING.test(name);
+}
+
 /** Hoogste van twee categorieën: test-automation > testing > development. */
 export function strongerCategory(a: Category, b: Category): Category {
   return RANK[b] > RANK[a] ? b : a;

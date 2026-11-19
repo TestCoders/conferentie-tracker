@@ -25,6 +25,8 @@ type Props = {
   community?: ReactNode;
   /** Kostenschatting; undefined = aannames niet beschikbaar (dan niet tonen). */
   cost?: CostEstimate | null;
+  /** Favorietknop (ster). */
+  favorite?: ReactNode;
 };
 
 export function ConferenceRow({
@@ -34,13 +36,14 @@ export function ConferenceRow({
   onToggleSelect,
   community,
   cost,
+  favorite,
 }: Props) {
   const checkboxId = `compare-row-${c.id}`;
   const { day, month, year } = dateParts(c.start_date);
 
   return (
     <div
-      className={`grid grid-cols-[3.5rem_1fr_auto] items-center gap-x-4 gap-y-2 px-4 py-3 transition-colors sm:grid-cols-[3.5rem_minmax(0,1fr)_8.5rem_9.5rem_8rem] lg:grid-cols-[3.5rem_minmax(0,1fr)_9rem_10.5rem_14rem] ${
+      className={`grid grid-cols-[3.5rem_1fr_auto] items-center gap-x-4 gap-y-2 px-4 py-3 transition-colors sm:grid-cols-[3.5rem_minmax(0,1fr)_8.5rem_9.5rem_10.5rem] lg:grid-cols-[3.5rem_minmax(0,1fr)_9rem_10.5rem_16.5rem] ${
         selected ? 'bg-signal-glow/60' : 'hover:bg-glass/60'
       }`}
     >
@@ -121,6 +124,7 @@ export function ConferenceRow({
 
       {/* Vaste kolom, rechts uitgelijnd: knop en vinkje staan in elke rij op dezelfde plek. */}
       <div className="flex flex-col items-end gap-2 sm:flex-row sm:items-center sm:justify-end sm:gap-3">
+        {favorite}
         {community}
         <label
           htmlFor={checkboxId}

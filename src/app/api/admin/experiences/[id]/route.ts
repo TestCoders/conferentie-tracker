@@ -1,4 +1,4 @@
-// DELETE — ervaring inclusief foto's verwijderen (moderatie). Admin-token vereist.
+// DELETE — ervaring inclusief foto's verwijderen (moderatie). Entra-adminrol vereist.
 import { PHOTO_BUCKET } from '@/lib/experiences-server';
 import { jsonError, requireAdmin } from '@/lib/http';
 import { getSupabaseAdmin } from '@/lib/supabase-admin';
@@ -6,7 +6,7 @@ import { getSupabaseAdmin } from '@/lib/supabase-admin';
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 export async function DELETE(request: Request, ctx: RouteContext<'/api/admin/experiences/[id]'>) {
-  const denied = requireAdmin(request);
+  const denied = await requireAdmin(request);
   if (denied) return denied;
   const { id } = await ctx.params;
   if (!UUID_RE.test(id)) return jsonError('Ongeldige id', 400);

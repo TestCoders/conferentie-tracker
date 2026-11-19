@@ -1,5 +1,5 @@
 // POST — AI-verrijking starten: { target: 'costs' } of { target: 'conferences', limit?: 1–12 }.
-// Admin-token vereist. Elke run wordt gelogd in ingestion_runs (source_name 'ai-enrichment').
+// Entra-adminrol vereist. Elke run wordt gelogd in ingestion_runs (source_name 'ai-enrichment').
 import { aiConfigured } from '@/lib/ai/openrouter';
 import { enrichConferences, enrichCosts } from '@/lib/ai/enrich';
 import { jsonError, requireAdmin } from '@/lib/http';
@@ -12,7 +12,7 @@ const DEFAULT_LIMIT = 6;
 const MAX_LIMIT = 12;
 
 export async function POST(request: Request) {
-  const denied = requireAdmin(request);
+  const denied = await requireAdmin(request);
   if (denied) return denied;
   if (!aiConfigured()) return jsonError('OPENROUTER_API_KEY is niet geconfigureerd', 501);
 

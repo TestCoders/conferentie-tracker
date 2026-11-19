@@ -103,18 +103,12 @@ export async function assertSafeExternalUrl(
   return url;
 }
 
-/** Voor door beheerders ingevoerde bron-URL's. */
-export async function loadExternalSource(
-  raw: string,
-  resolve: HostResolver = resolveHost,
-): Promise<string> {
-  const url = await assertSafeExternalUrl(raw, resolve);
-  const response = await fetch(url, {
-    cache: 'no-store',
-    redirect: 'error',
-    signal: AbortSignal.timeout(TIMEOUT_MS),
-  });
-  if (!response.ok) throw new Error(`HTTP ${response.status}`);
+export const MAX_REDIRECTS = 3;
+
+/** Opgehaalde externe bron: tekst, content-type en de uiteindelijke URL na redirects. */
+export type ExternalDocument = { text: string; contentType: string; url: string };
+
+async function readLimited(response: Response): Promise<string> {
   const declared = Number(response.headers.get('content-length'));
   if (Number.isFinite(declared) && declared > EXTERNAL_MAX_BYTES) {
     throw new Error('Bron is te groot');
@@ -135,4 +129,51 @@ export async function loadExternalSource(
     text += decoder.decode(value, { stream: true });
   }
   return text + decoder.decode();
+}
+
+/**
+ * Voor door beheerders ingevoerde bron-URL's. Redirects worden zelf gevolgd (max. 3), en elke
+ * stap gaat opnieuw door de SSRF-controle.
+ */
+export async function loadExternalDocument(
+  raw: string,
+  resolve: HostResolver = resolveHost,
+): Promise<ExternalDocument> {
+  let url = await assertSafeExternalUrl(raw, resolve);
+  for (let hop = 0; hop <= MAX_REDIRECTS; hop++) {
+    const response = await fetch(url, {
+      cache: 'no-store',
+      redirect: 'manual',
+      signal: AbortSignal.timeout(TIMEOUT_MS),
+      headers: {
+        Accept:
+          'application/json, application/ld+json, text/calendar, application/yaml, text/yaml, text/html;q=0.9, */*;q=0.5',
+        'User-Agent': 'Mozilla/5.0 (compatible; ConferenceTracker/1.0)',
+      },
+    });
+    if (response.status >= 300 && response.status < 400) {
+      await response.body?.cancel().catch(() => undefined);
+      const location = response.headers.get('location');
+      if (!location) throw new Error(`Redirect zonder doel (HTTP ${response.status})`);
+      url = await assertSafeExternalUrl(new URL(location, url).href, resolve);
+      continue;
+    }
+    if (!response.ok) {
+      await response.body?.cancel().catch(() => undefined);
+      throw new Error(`HTTP ${response.status}`);
+    }
+    return {
+      text: await readLimited(response),
+      contentType: (response.headers.get('content-type') ?? '').toLowerCase(),
+      url: url.href,
+    };
+  }
+  throw new Error('Te veel redirects');
+}
+
+export async function loadExternalSource(
+  raw: string,
+  resolve: HostResolver = resolveHost,
+): Promise<string> {
+  return (await loadExternalDocument(raw, resolve)).text;
 }

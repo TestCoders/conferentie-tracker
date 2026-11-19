@@ -1,5 +1,5 @@
 'use client';
-// Kostenaannames per land beheren (roadmap #4). Gebruikt het admin-token uit AdminPanel (React state).
+// Kostenaannames per land beheren (roadmap #4). Microsoft-sessie vereist; rechten worden server-side gecontroleerd.
 import { useEffect, useMemo, useState } from 'react';
 import {
   BTN_PRIMARY,
@@ -34,7 +34,7 @@ async function readError(res: Response): Promise<string> {
 
 const AMOUNT_FIELD = `${FIELD} w-28 text-right`;
 
-export function CostAssumptionsPanel({ token }: { token: string }) {
+export function CostAssumptionsPanel() {
   const [assumptions, setAssumptions] = useState<CostAssumption[] | null>(null);
   const [conferences, setConferences] = useState<Conference[] | null>(null);
   const [drafts, setDrafts] = useState<Record<string, Draft>>({});
@@ -67,9 +67,7 @@ export function CostAssumptionsPanel({ token }: { token: string }) {
 
   async function loadCountries() {
     setError(null);
-    const res = await fetch('/api/admin/conferences', {
-      headers: { Authorization: `Bearer ${token}` },
-    });
+    const res = await fetch('/api/admin/conferences', {});
     if (!res.ok) {
       setError(await readError(res));
       return;
@@ -138,7 +136,7 @@ export function CostAssumptionsPanel({ token }: { token: string }) {
     try {
       const res = await fetch('/api/admin/cost-assumptions', {
         method: 'PUT',
-        headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           country: label,
           travelEur,
@@ -171,7 +169,7 @@ export function CostAssumptionsPanel({ token }: { token: string }) {
       const country = row.key === DEFAULT_COST_COUNTRY_KEY ? DEFAULT_COST_COUNTRY_KEY : row.label;
       const res = await fetch(
         `/api/admin/cost-assumptions?country=${encodeURIComponent(country)}`,
-        { method: 'DELETE', headers: { Authorization: `Bearer ${token}` } },
+        { method: 'DELETE' },
       );
       if (!res.ok) {
         setError(await readError(res));
@@ -216,7 +214,7 @@ export function CostAssumptionsPanel({ token }: { token: string }) {
             De officiële ticketprijs vul je per conferentie in via <em>✎ Corrigeren</em>.
           </p>
         </div>
-        <button type="button" className={BTN_SECONDARY} onClick={loadCountries} disabled={!token}>
+        <button type="button" className={BTN_SECONDARY} onClick={loadCountries}>
           ↻ Landen uit conferenties laden
         </button>
       </div>
@@ -232,9 +230,9 @@ export function CostAssumptionsPanel({ token }: { token: string }) {
         </p>
       ) : null}
 
-      {!conferences && !token ? (
+      {!conferences ? (
         <p className="text-ink-muted font-mono text-xs">
-          Vul eerst het admin-token in om landen te laden en aannames te bewerken.
+          Laad de conferenties om landen en hun aannames te bekijken.
         </p>
       ) : null}
 
@@ -275,7 +273,6 @@ export function CostAssumptionsPanel({ token }: { token: string }) {
               setDraft(DEFAULT_COST_COUNTRY_KEY, { travel: e.target.value }, defaultDraft)
             }
             className={AMOUNT_FIELD}
-            disabled={!token}
           />
         </label>
         <label className={FIELD_LABEL}>
@@ -288,13 +285,12 @@ export function CostAssumptionsPanel({ token }: { token: string }) {
               setDraft(DEFAULT_COST_COUNTRY_KEY, { hotel: e.target.value }, defaultDraft)
             }
             className={AMOUNT_FIELD}
-            disabled={!token}
           />
         </label>
         <button
           type="submit"
           className={BTN_PRIMARY}
-          disabled={!token || !defaultDirty || busyKey === DEFAULT_COST_COUNTRY_KEY}
+          disabled={!defaultDirty || busyKey === DEFAULT_COST_COUNTRY_KEY}
         >
           {busyKey === DEFAULT_COST_COUNTRY_KEY ? '…' : 'opslaan'}
         </button>
@@ -302,7 +298,7 @@ export function CostAssumptionsPanel({ token }: { token: string }) {
           <button
             type="button"
             className={BTN_SECONDARY}
-            disabled={!token || busyKey === DEFAULT_COST_COUNTRY_KEY}
+            disabled={busyKey === DEFAULT_COST_COUNTRY_KEY}
             onClick={() => remove(defaultRow)}
             aria-label="Standaardaanname verwijderen"
           >
@@ -360,7 +356,6 @@ export function CostAssumptionsPanel({ token }: { token: string }) {
                         value={draft.travel}
                         onChange={(e) => setDraft(row.key, { travel: e.target.value }, draft)}
                         className={AMOUNT_FIELD}
-                        disabled={!token}
                       />
                     </td>
                     <td className="px-2 py-2 text-right">
@@ -370,7 +365,6 @@ export function CostAssumptionsPanel({ token }: { token: string }) {
                         value={draft.hotel}
                         onChange={(e) => setDraft(row.key, { hotel: e.target.value }, draft)}
                         className={AMOUNT_FIELD}
-                        disabled={!token}
                       />
                     </td>
                     <td className="px-4 py-2">
@@ -378,7 +372,7 @@ export function CostAssumptionsPanel({ token }: { token: string }) {
                         <button
                           type="button"
                           className={BTN_SECONDARY}
-                          disabled={!token || !dirty || busyKey === row.key}
+                          disabled={!dirty || busyKey === row.key}
                           onClick={() => save(row.label, row.key, draft)}
                         >
                           {busyKey === row.key ? '…' : 'opslaan'}
@@ -387,7 +381,7 @@ export function CostAssumptionsPanel({ token }: { token: string }) {
                           <button
                             type="button"
                             className={BTN_SECONDARY}
-                            disabled={!token || busyKey === row.key}
+                            disabled={busyKey === row.key}
                             onClick={() => remove(row)}
                             aria-label={`Aanname voor ${row.label} verwijderen`}
                           >
@@ -427,7 +421,6 @@ export function CostAssumptionsPanel({ token }: { token: string }) {
             maxLength={80}
             placeholder="Bijv. Portugal"
             className={FIELD}
-            disabled={!token}
           />
         </label>
         <label className={FIELD_LABEL}>
@@ -437,7 +430,6 @@ export function CostAssumptionsPanel({ token }: { token: string }) {
             value={newDraft.travel}
             onChange={(e) => setDraft('__new__', { travel: e.target.value }, newDraft)}
             className={AMOUNT_FIELD}
-            disabled={!token}
           />
         </label>
         <label className={FIELD_LABEL}>
@@ -447,10 +439,9 @@ export function CostAssumptionsPanel({ token }: { token: string }) {
             value={newDraft.hotel}
             onChange={(e) => setDraft('__new__', { hotel: e.target.value }, newDraft)}
             className={AMOUNT_FIELD}
-            disabled={!token}
           />
         </label>
-        <button type="submit" className={BTN_PRIMARY} disabled={!token || !newKey}>
+        <button type="submit" className={BTN_PRIMARY} disabled={!newKey}>
           + Toevoegen
         </button>
         {newKey && newDraft.travel && newDraft.hotel ? (
