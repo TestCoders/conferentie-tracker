@@ -1,7 +1,8 @@
 'use client';
-// Eigenaar: C. Publiek overzicht: zoeken, filteren, sorteren, lijst/kaarten en 2 vergelijken.
+// Eigenaar: C. Publiek overzicht: zoeken, filteren, sorteren, lijst/kaarten/agenda en 2 vergelijken.
 import { useEffect, useMemo, useState } from 'react';
 import { CATEGORIES, type Category, type Conference, type ListResponse } from '@/lib/types';
+import { AgendaView } from './AgendaView';
 import { CompareTable } from './CompareTable';
 import { ConferenceCard } from './ConferenceCard';
 import { ConferenceRow } from './ConferenceRow';
@@ -10,7 +11,13 @@ import { CATEGORY_LABELS } from './format';
 const MAX_COMPARE = 2;
 
 type SortOrder = 'asc' | 'desc';
-type ViewMode = 'list' | 'cards';
+type ViewMode = 'list' | 'cards' | 'agenda';
+
+const VIEW_LABELS: Record<ViewMode, string> = {
+  list: '☰ Lijst',
+  cards: '▦ Kaarten',
+  agenda: '📅 Agenda',
+};
 
 const FIELD =
   'rounded-md border border-hairline bg-surface px-3 py-2 font-sans text-sm text-ink focus:ring-2 focus:ring-signal focus:outline-none';
@@ -119,17 +126,19 @@ export function Explorer() {
               ))}
             </select>
           </label>
-          <label className={FIELD_LABEL}>
-            --sort
-            <select
-              value={sortOrder}
-              onChange={(e) => setSortOrder(e.target.value as SortOrder)}
-              className={FIELD}
-            >
-              <option value="asc">Eerstvolgende eerst</option>
-              <option value="desc">Laatste eerst</option>
-            </select>
-          </label>
+          {view !== 'agenda' ? (
+            <label className={FIELD_LABEL}>
+              --sort
+              <select
+                value={sortOrder}
+                onChange={(e) => setSortOrder(e.target.value as SortOrder)}
+                className={FIELD}
+              >
+                <option value="asc">Eerstvolgende eerst</option>
+                <option value="desc">Laatste eerst</option>
+              </select>
+            </label>
+          ) : null}
           <div className={FIELD_LABEL}>
             <span id="view-label">--weergave</span>
             <div
@@ -137,7 +146,7 @@ export function Explorer() {
               aria-labelledby="view-label"
               className="border-hairline bg-surface flex rounded-md border p-0.5"
             >
-              {(['list', 'cards'] as const).map((mode) => (
+              {(Object.keys(VIEW_LABELS) as ViewMode[]).map((mode) => (
                 <button
                   key={mode}
                   type="button"
@@ -147,7 +156,7 @@ export function Explorer() {
                     view === mode ? 'bg-signal text-white' : 'text-ink-soft hover:text-ink'
                   }`}
                 >
-                  {mode === 'list' ? '☰ Lijst' : '▦ Kaarten'}
+                  {VIEW_LABELS[mode]}
                 </button>
               ))}
             </div>
@@ -161,6 +170,8 @@ export function Explorer() {
 
       {visible.length === 0 ? (
         <p>Geen conferenties gevonden voor deze zoekopdracht.</p>
+      ) : view === 'agenda' ? (
+        <AgendaView conferences={visible} />
       ) : view === 'list' ? (
         <ul className="divide-hairline border-hairline bg-surface divide-y overflow-hidden rounded-md border">
           {visible.map((c) => {
