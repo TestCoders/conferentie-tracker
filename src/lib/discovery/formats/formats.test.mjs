@@ -354,6 +354,8 @@ test('AI-extracted conferences are inserted as pending; existing ones keep their
         ? Response.json({ id: 'run' })
         : new Response(null, { status: 204 });
     }
+    // Huidige categorie van bestaande records (herimport verlaagt die nooit).
+    if (request.method === 'GET' && url.pathname.endsWith('/conferences')) return Response.json([]);
     const body = await request.json();
     const ignore = request.headers.get('prefer')?.includes('resolution=ignore-duplicates');
     (ignore ? inserts : updates).push(...body);

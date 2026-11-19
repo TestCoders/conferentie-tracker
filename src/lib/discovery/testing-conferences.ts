@@ -1,6 +1,7 @@
 // Eigenaar: B. Alleen de vaste, publieke YAML-bron van TestingConferences.org.
 import { parseDocument } from 'yaml';
 import { loadFixedSource, type FetchResult, type SourceLoader } from '@/lib/discovery/fetch-source';
+import { classifyConference } from '@/lib/discovery/classify';
 import { normalizeUrl } from '@/lib/discovery/normalize-url';
 import { readDate, readText, readUrl } from '@/lib/discovery/validation';
 import { mentionsYearSince, pastCutoff } from '@/lib/discovery/past-window';
@@ -92,9 +93,7 @@ export function parseTestingConferenceRecord(
     source_url: sourceUrl,
     ...parseTestingDates(record.dates),
     ...parseLocation(record.location),
-    category: /\btest[\s-]+automation\b|\bautomated testing\b/i.test(name)
-      ? 'test-automation'
-      : 'testing',
+    category: classifyConference(name, 'testing'),
     // status bevat vrije tekst/HTML; geen prijs of CFP-deadline daaruit raden.
     cfp_url: null,
     cfp_deadline: null,

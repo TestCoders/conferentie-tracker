@@ -4,11 +4,13 @@ import {
   fetchTestingConferences,
   fetchTestingConferencesPast,
 } from '@/lib/discovery/testing-conferences';
+import { strongerCategory } from '@/lib/discovery/classify';
 import { loadCostCoverage } from '@/lib/discovery/cost-coverage';
 import { fetchCustomSource, getCustomSource } from '@/lib/discovery/custom-sources';
 import type { FetchResult } from '@/lib/discovery/fetch-source';
 import { getSupabaseAdmin } from '@/lib/supabase-admin';
 import type {
+  Category,
   ConferenceInput,
   ConferenceStatus,
   DiscoveryRunResponse,
@@ -21,14 +23,39 @@ function conferenceKey(item: Pick<ConferenceInput, 'canonical_url' | 'start_date
   return JSON.stringify([item.canonical_url, item.start_date]);
 }
 
-/** Een bron kan dezelfde conferentie in meerdere categoriefeeds opnemen. */
+/**
+ * Een bron kan dezelfde conferentie in meerdere categoriefeeds opnemen (bijv. devops én testing).
+ * Het eerste record blijft, met de sterkste categorie van alle dubbelen.
+ */
 export function deduplicateConferences(items: ConferenceInput[]): ConferenceInput[] {
   const unique = new Map<string, ConferenceInput>();
   for (const item of items) {
     const key = conferenceKey(item);
-    if (!unique.has(key)) unique.set(key, item);
+    const seen = unique.get(key);
+    if (!seen) unique.set(key, item);
+    else unique.set(key, { ...seen, category: strongerCategory(seen.category, item.category) });
   }
   return [...unique.values()];
+}
+
+type CategoryRow = Pick<ConferenceInput, 'canonical_url' | 'start_date' | 'category'>;
+
+/** Huidige categorie per conferentie, zodat een herimport die niet verlaagt. */
+async function existingCategories(
+  db: ReturnType<typeof getSupabaseAdmin>,
+  urls: string[],
+): Promise<Map<string, Category>> {
+  const categories = new Map<string, Category>();
+  const unique = [...new Set(urls)];
+  for (let i = 0; i < unique.length; i += 100) {
+    const { data, error } = await db
+      .from('conferences')
+      .select('canonical_url,start_date,category')
+      .in('canonical_url', unique.slice(i, i + 100));
+    if (error || !data) throw new Error('Bestaande categorieën ophalen mislukt');
+    for (const row of data as CategoryRow[]) categories.set(conferenceKey(row), row.category);
+  }
+  return categories;
 }
 
 const ADAPTERS: Record<DiscoverySource, () => Promise<FetchResult>> = {
@@ -108,8 +135,17 @@ async function runIngestion(
       if (insertError || !inserted) throw new Error('Conferenties invoegen mislukt');
       result.inserted = inserted.length;
       const insertedKeys = new Set(inserted.map(conferenceKey));
-      const existing = rows.filter((item) => !insertedKeys.has(conferenceKey(item)));
-      if (existing.length > 0) {
+      const existingRows = rows.filter((item) => !insertedKeys.has(conferenceKey(item)));
+      if (existingRows.length > 0) {
+        // Een categorie mag stijgen (betere classificatie), nooit dalen (bijv. door een andere bron).
+        const current = await existingCategories(
+          db,
+          existingRows.map((item) => item.canonical_url),
+        );
+        const existing = existingRows.map((item) => {
+          const stored = current.get(conferenceKey(item));
+          return stored ? { ...item, category: strongerCategory(stored, item.category) } : item;
+        });
         const { data: updated, error: updateError } = await db
           .from('conferences')
           .upsert(existing, { onConflict: 'canonical_url,start_date' })

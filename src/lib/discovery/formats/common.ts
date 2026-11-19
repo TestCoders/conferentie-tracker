@@ -1,24 +1,23 @@
 // Eigenaar: B. Gedeelde regels voor automatisch herkende bronformaten (eigen bronnen).
+import { classifyConference, mentionsTesting } from '@/lib/discovery/classify';
 import { readDate } from '@/lib/discovery/validation';
 import type { Category, ConferenceInput } from '@/lib/types';
 
 /** Herkomst van records uit één bron. */
 export type Origin = { sourceUrl: string; sourceName: string; defaultCategory: Category };
 
-const AUTOMATION = /\btest[\s-]+automation\b|\bautomated testing\b/i;
-const TESTING = /\b(software[\s-]+)?test(ing)?\b|\bqa\b|\bquality assurance\b/i;
-
-/** Categorie alleen op bewijs in de naam; anders de standaardcategorie van de bron. */
+/**
+ * Categorie alleen op bewijs in de naam; anders de standaardcategorie van de bron.
+ * Zelfde regels als de vaste bronnen (`@/lib/discovery/classify`).
+ */
 export function categorize(name: string, fallback: Category): Category {
-  if (AUTOMATION.test(name)) return 'test-automation';
-  if (fallback === 'development' && TESTING.test(name)) return 'testing';
-  return fallback;
+  return classifyConference(name, fallback);
 }
 
 /** Voorstel voor de standaardcategorie: 'testing' als de meeste namen over testen gaan. */
 export function suggestCategory(names: string[]): Category {
   if (names.length === 0) return 'development';
-  const testing = names.filter((name) => AUTOMATION.test(name) || TESTING.test(name)).length;
+  const testing = names.filter(mentionsTesting).length;
   return testing / names.length >= 0.5 ? 'testing' : 'development';
 }
 

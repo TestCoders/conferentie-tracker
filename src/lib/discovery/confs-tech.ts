@@ -4,18 +4,22 @@ import { loadFixedSource, type FetchResult, type SourceLoader } from '@/lib/disc
 import { normalizeUrl } from '@/lib/discovery/normalize-url';
 import { readText as text, readDate as date, readUrl as url } from '@/lib/discovery/validation';
 import { pastCutoff } from '@/lib/discovery/past-window';
+import { classifyConference, confsTechFeedCategory } from '@/lib/discovery/classify';
 
 export const CONFS_TECH_SOURCES = [
   'https://raw.githubusercontent.com/tech-conferences/conference-data/main/conferences/2027/javascript.json',
   'https://raw.githubusercontent.com/tech-conferences/conference-data/main/conferences/2027/devops.json',
+  'https://raw.githubusercontent.com/tech-conferences/conference-data/main/conferences/2027/testing.json',
 ] as const;
 
 /** Historische feeds (bron 'confs-tech-past'); alleen records vanaf 12 maanden geleden. */
 export const CONFS_TECH_PAST_SOURCES = [
   'https://raw.githubusercontent.com/tech-conferences/conference-data/main/conferences/2026/javascript.json',
   'https://raw.githubusercontent.com/tech-conferences/conference-data/main/conferences/2026/devops.json',
+  'https://raw.githubusercontent.com/tech-conferences/conference-data/main/conferences/2026/testing.json',
   'https://raw.githubusercontent.com/tech-conferences/conference-data/main/conferences/2025/javascript.json',
   'https://raw.githubusercontent.com/tech-conferences/conference-data/main/conferences/2025/devops.json',
+  'https://raw.githubusercontent.com/tech-conferences/conference-data/main/conferences/2025/testing.json',
 ] as const;
 
 export function parseConfsTechRecord(
@@ -51,7 +55,7 @@ export function parseConfsTechRecord(
     city: onlineOnly ? null : city,
     country: onlineOnly ? null : country,
     online_only: onlineOnly,
-    category: 'development',
+    category: classifyConference(name, confsTechFeedCategory(sourceUrl)),
     cfp_url: url(record.cfpUrl, 'cfpUrl'),
     cfp_deadline: date(record.cfpEndDate, 'cfpEndDate'),
     price_text: null,
