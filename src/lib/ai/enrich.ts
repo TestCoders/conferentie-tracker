@@ -16,6 +16,27 @@ import { chatJson, type JsonSchema } from './openrouter';
 import { fetchPage, type PageSnapshot } from './safe-fetch';
 
 const BATCH_SIZE = 3;
+const COUNTRIES_PER_REQUEST = 8;
+/** Max. gelijktijdige AI-verzoeken (aanbieders van gratis modellen throttlen anders). */
+const MAX_PARALLEL = 2;
+
+/** Zoals Promise.all(items.map(fn)), maar met maximaal `limit` tegelijk; volgorde blijft gelijk. */
+async function mapLimit<T, R>(
+  items: T[],
+  limit: number,
+  fn: (item: T) => Promise<R>,
+): Promise<R[]> {
+  const results = new Array<R>(items.length);
+  let next = 0;
+  const workers = Array.from({ length: Math.min(limit, items.length) }, async () => {
+    while (next < items.length) {
+      const i = next++;
+      results[i] = await fn(items[i]);
+    }
+  });
+  await Promise.all(workers);
+  return results;
+}
 const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
 
 const today = () => new Date().toISOString().slice(0, 10);
@@ -103,39 +124,70 @@ export async function enrichCosts(db: SupabaseClient): Promise<EnrichResponse> {
   countries.set(DEFAULT_COST_COUNTRY_KEY, 'gemiddelde overige landen (standaardaanname)');
   const list = [...countries].map(([key, label]) => ({ key, label }));
 
-  const { data: ai, model } = await chatJson(
-    [
-      {
-        role: 'system',
-        content:
-          "Je maakt ruwe kosteninschattingen voor zakenreizen naar conferenties. Antwoord uitsluitend met JSON volgens het schema. Bedragen in hele euro's per persoon, prijspeil van vandaag.",
-      },
-      {
-        role: 'user',
-        content: [
-          `Datum: ${today()}. Vertrekpunt: Nederland (Amsterdam/Utrecht).`,
-          'Geef per land een ruwe indicatie:',
-          '- travel_eur: reis retour per persoon. Trein of auto als dat gebruikelijk is (< ca. 700 km), anders economy-vlucht inclusief bagage, ongeveer 6 weken vooruit geboekt. Voor Nederland zelf: binnenlandse reis.',
-          '- hotel_per_night_eur: middenklasse (3-sterren) hotelkamer in een typische conferentiestad, per nacht.',
-          '- note: korte toelichting (max. 120 tekens), bijv. "vlucht AMS–NYC, hotel Manhattan-niveau".',
-          'Gebruik exact de opgegeven key. Key "*" is het gemiddelde voor overige landen.',
-          `Landen: ${JSON.stringify(list)}`,
-        ].join('\n'),
-      },
-    ],
-    'cost_assumptions',
-    COSTS_SCHEMA,
-  );
-  result.requests += 1;
-  result.model = model;
+  // In groepen, zodat gratis (denk)modellen het antwoord niet afkappen.
+  const chunks: (typeof list)[] = [];
+  for (let i = 0; i < list.length; i += COUNTRIES_PER_REQUEST) {
+    chunks.push(list.slice(i, i + COUNTRIES_PER_REQUEST));
+  }
+  const answers = await mapLimit(chunks, MAX_PARALLEL, async (chunk) => {
+    try {
+      return await chatJson(
+        [
+          {
+            role: 'system',
+            content:
+              "Je maakt ruwe kosteninschattingen voor zakenreizen naar conferenties. Antwoord uitsluitend met JSON volgens het schema. Bedragen in hele euro's per persoon, prijspeil van vandaag.",
+          },
+          {
+            role: 'user',
+            content: [
+              `Datum: ${today()}. Vertrekpunt: Nederland (Amsterdam/Utrecht).`,
+              'Geef per land een ruwe indicatie:',
+              '- travel_eur: reis retour per persoon. Trein of auto als dat gebruikelijk is (< ca. 700 km), anders economy-vlucht inclusief bagage, ongeveer 6 weken vooruit geboekt. Voor Nederland zelf: binnenlandse reis.',
+              '- hotel_per_night_eur: middenklasse (3-sterren) hotelkamer in een typische conferentiestad, per nacht.',
+              '- note: korte toelichting (max. 120 tekens), bijv. "vlucht AMS–NYC, hotel Manhattan-niveau".',
+              'Gebruik exact de opgegeven key. Key "*" is het gemiddelde voor overige landen.',
+              `Landen: ${JSON.stringify(chunk)}`,
+            ].join('\n'),
+          },
+        ],
+        'cost_assumptions',
+        COSTS_SCHEMA,
+      );
+    } catch (err) {
+      result.errors.push(
+        `AI-verzoek mislukt voor ${chunk.map((c) => c.label).join(', ')}: ${(err as Error).message}`,
+      );
+      return null;
+    }
+  });
+  result.requests += chunks.length;
+  const ok = answers.filter((a): a is NonNullable<typeof a> => a !== null);
+  if (ok.length === 0) throw new Error(result.errors.join('\n') || 'Geen AI-antwoord');
+  result.model = ok[0].model;
 
-  const items = (ai as { items?: unknown[] } | null)?.items;
-  if (!Array.isArray(items)) throw new Error('AI-antwoord zonder items');
+  const items = ok.flatMap((a) => {
+    const list = (a.data as { items?: unknown[] } | null)?.items;
+    return Array.isArray(list) ? list : [];
+  });
   const now = new Date().toISOString();
   const rows: CostAssumption[] = [];
+  // Modellen geven soms het label ('U.S.A.') of een variant terug i.p.v. de key ('usa').
+  const byLabel = new Map([...countries].map(([key, label]) => [countryKey(label) ?? key, key]));
+  const resolveKey = (value: unknown): string | null => {
+    if (typeof value !== 'string') return null;
+    const raw = value.trim();
+    if (raw === DEFAULT_COST_COUNTRY_KEY) return raw;
+    const lower = raw.toLowerCase();
+    if (countries.has(lower)) return lower;
+    const normalized = countryKey(raw);
+    if (normalized && countries.has(normalized)) return normalized;
+    return (normalized && byLabel.get(normalized)) ?? null;
+  };
+
   for (const raw of items) {
     const r = raw as Record<string, unknown>;
-    const key = typeof r.key === 'string' ? r.key.trim().toLowerCase() : '';
+    const key = resolveKey(r.key) ?? '';
     const label = countries.get(key);
     const travel = int(r.travel_eur, 0, 20000);
     const hotel = int(r.hotel_per_night_eur, 0, 5000);
@@ -158,10 +210,12 @@ export async function enrichCosts(db: SupabaseClient): Promise<EnrichResponse> {
   const missing = list.filter((c) => !rows.some((r) => r.country_key === c.key));
   for (const m of missing) result.errors.push(`${m.label}: geen schatting van de AI`);
 
-  if (rows.length) {
+  // De AI kan een land dubbel teruggeven; één rij per land (laatste wint).
+  const unique = [...new Map(rows.map((r) => [r.country_key, r])).values()];
+  if (unique.length) {
     const up = await db
       .from('cost_assumptions')
-      .upsert(rows, { onConflict: 'country_key' })
+      .upsert(unique, { onConflict: 'country_key' })
       .select('country_key');
     if (up.error) throw new Error(up.error.message);
     result.updated = up.data?.length ?? 0;
@@ -283,6 +337,32 @@ export function planConferenceUpdate(
   return { patch, fields: [...fields] };
 }
 
+const TICKET_LINK = /ticket|price|pricing|prijs|register|registration|buy/i;
+const CFP_LINK = /cfp|call-for|callfor|speak|papers|submit/i;
+const DETAIL_TEXT = 2_500;
+
+/**
+ * Prijzen en CFP-datums staan meestal op een aparte pagina: haal de eerste tickets- en
+ * CFP-link (zelfde site, zelfde veiligheidscontroles) ook op en voeg de tekst toe.
+ */
+async function withDetailPages(page: PageSnapshot): Promise<PageSnapshot> {
+  const picks = [
+    page.links.find((l) => TICKET_LINK.test(l)),
+    page.links.find((l) => CFP_LINK.test(l)),
+  ].filter((l, i, all): l is string => Boolean(l) && l !== page.url && all.indexOf(l) === i);
+  const extras = await Promise.all(
+    picks.map(async (url) => {
+      try {
+        const detail = await fetchPage(url);
+        return `\n\n--- ${url} ---\n${detail.text.slice(0, DETAIL_TEXT)}`;
+      } catch {
+        return '';
+      }
+    }),
+  );
+  return { ...page, text: page.text + extras.join('') };
+}
+
 async function askConferences(batch: Candidate[]) {
   return chatJson(
     [
@@ -353,7 +433,7 @@ export async function enrichConferences(
   const pages = await Promise.all(
     rows.map(async (row) => {
       try {
-        return { row, page: await fetchPage(row.official_url) };
+        return { row, page: await withDetailPages(await fetchPage(row.official_url)) };
       } catch (err) {
         result.errors.push(`${row.name}: website niet op te halen (${(err as Error).message})`);
         return { row, page: null };
@@ -371,32 +451,34 @@ export async function enrichConferences(
   for (let i = 0; i < candidates.length; i += BATCH_SIZE)
     batches.push(candidates.slice(i, i + BATCH_SIZE));
 
-  const answers = await Promise.all(
-    batches.map(async (batch) => {
-      try {
-        const res = await askConferences(batch);
-        return { batch, res };
-      } catch (err) {
-        result.errors.push(
-          `AI-verzoek mislukt voor ${batch.map((b) => b.row.name).join(', ')}: ${(err as Error).message}`,
-        );
-        return { batch, res: null };
-      }
-    }),
-  );
+  const answers = await mapLimit(batches, MAX_PARALLEL, async (batch) => {
+    try {
+      const res = await askConferences(batch);
+      return { batch, res };
+    } catch (err) {
+      result.errors.push(
+        `AI-verzoek mislukt voor ${batch.map((b) => b.row.name).join(', ')}: ${(err as Error).message}`,
+      );
+      return { batch, res: null };
+    }
+  });
   result.requests += batches.length;
 
   for (const { batch, res } of answers) {
     if (!res) continue; // Niet markeren: volgende run opnieuw proberen.
     result.model = res.model ?? result.model;
-    const items = (res.data as { items?: unknown[] } | null)?.items ?? [];
-    const byId = new Map(
-      items
-        .filter((i): i is Record<string, unknown> => typeof i === 'object' && i !== null)
-        .map((i) => [String(i.id), i]),
+    const items = ((res.data as { items?: unknown[] } | null)?.items ?? []).filter(
+      (i): i is Record<string, unknown> => typeof i === 'object' && i !== null,
     );
-    for (const { row, page } of batch) {
-      const ai = byId.get(row.id);
+    const byId = new Map(items.map((i) => [String(i.id).trim(), i]));
+    const byName = new Map(items.map((i) => [String(i.id).trim().toLowerCase(), i]));
+    // Modellen geven soms de naam of een volgnummer als id terug; dan op naam of volgorde koppelen.
+    const sameLength = items.length === batch.length;
+    for (const [index, { row, page }] of batch.entries()) {
+      const ai =
+        byId.get(row.id) ??
+        byName.get(row.name.toLowerCase()) ??
+        (sameLength ? items[index] : undefined);
       result.processed += 1;
       if (!ai) {
         result.errors.push(`${row.name}: geen antwoord van de AI`);

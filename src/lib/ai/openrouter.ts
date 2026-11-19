@@ -5,7 +5,10 @@
 
 const ENDPOINT = 'https://openrouter.ai/api/v1/chat/completions';
 const DEFAULT_MODEL = 'openrouter/free';
-const TIMEOUT_MS = 45_000;
+/** Vast gratis model als reserve (instelbaar met OPENROUTER_FALLBACK_MODEL). */
+const DEFAULT_FALLBACK_MODEL = 'google/gemma-4-31b-it:free';
+const TIMEOUT_MS = 50_000;
+const MAX_TOKENS = 8_000;
 
 export type ChatMessage = { role: 'system' | 'user'; content: string };
 
@@ -37,7 +40,38 @@ export async function chatJson(
   const key = process.env.OPENROUTER_API_KEY;
   if (!key) throw new Error('OPENROUTER_API_KEY is niet geconfigureerd');
   const model = process.env.OPENROUTER_MODEL || DEFAULT_MODEL;
+  const fallback = process.env.OPENROUTER_FALLBACK_MODEL || DEFAULT_FALLBACK_MODEL;
 
+  // Tweede poging met een vast reservemodel: de gratis router kiest soms een model dat
+  // een leeg of afgebroken antwoord geeft.
+  let lastError: Error | null = null;
+  for (const attemptModel of model === fallback ? [model, model] : [model, fallback]) {
+    try {
+      return await chatJsonOnce(key, attemptModel, messages, schemaName, schema);
+    } catch (err) {
+      lastError = err instanceof Error ? err : new Error('AI-verzoek mislukt');
+      if (/limiet|429|niet geconfigureerd/.test(lastError.message)) break;
+    }
+  }
+  throw lastError ?? new Error('AI-verzoek mislukt');
+}
+
+type CompletionBody = {
+  model?: string;
+  error?: { message?: string };
+  choices?: {
+    finish_reason?: string;
+    message?: { content?: string | null; reasoning?: string | null };
+  }[];
+};
+
+async function chatJsonOnce(
+  key: string,
+  model: string,
+  messages: ChatMessage[],
+  schemaName: string,
+  schema: JsonSchema,
+): Promise<{ data: unknown; model: string | null }> {
   const res = await fetch(ENDPOINT, {
     method: 'POST',
     headers: {
@@ -48,6 +82,9 @@ export async function chatJson(
     body: JSON.stringify({
       model,
       temperature: 0,
+      max_tokens: MAX_TOKENS,
+      // Denkmodellen: weinig nadenken, zodat het antwoord zelf niet afgekapt wordt.
+      reasoning: { effort: 'low' },
       messages,
       response_format: {
         type: 'json_schema',
@@ -57,18 +94,27 @@ export async function chatJson(
     signal: AbortSignal.timeout(TIMEOUT_MS),
   });
 
-  const body = (await res.json().catch(() => null)) as {
-    model?: string;
-    error?: { message?: string };
-    choices?: { message?: { content?: string } }[];
-  } | null;
+  const body = (await res.json().catch(() => null)) as CompletionBody | null;
   if (!res.ok) {
     const reason = body?.error?.message ?? `HTTP ${res.status}`;
     if (res.status === 429)
       throw new Error(`AI-limiet bereikt (${reason}); probeer het later opnieuw`);
     throw new Error(`AI-verzoek mislukt: ${reason}`);
   }
-  const content = body?.choices?.[0]?.message?.content;
-  if (!content) throw new Error('Leeg AI-antwoord');
-  return { data: extractJson(content), model: body?.model ?? model };
+  const choice = body?.choices?.[0];
+  const used = body?.model ?? model;
+  const content = choice?.message?.content?.trim();
+  if (content) return { data: extractJson(content), model: used };
+  // Sommige denkmodellen zetten de JSON alleen in het reasoning-veld.
+  const reasoning = choice?.message?.reasoning;
+  if (reasoning) {
+    try {
+      return { data: extractJson(reasoning), model: used };
+    } catch {
+      // Geen bruikbare JSON in de redenering.
+    }
+  }
+  throw new Error(
+    `Leeg AI-antwoord (model ${used}, finish_reason ${choice?.finish_reason ?? 'onbekend'})`,
+  );
 }
