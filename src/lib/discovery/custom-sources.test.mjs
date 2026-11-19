@@ -13,8 +13,13 @@ registerHooks({
   },
 });
 
-const { assertSafeExternalUrl, isPublicAddress, loadExternalSource, EXTERNAL_MAX_BYTES } =
-  await import('@/lib/discovery/fetch-source');
+const {
+  assertSafeExternalUrl,
+  isPublicAddress,
+  loadExternalDocument,
+  loadExternalSource,
+  EXTERNAL_MAX_BYTES,
+} = await import('@/lib/discovery/fetch-source');
 const { parseCreateCustomSource, fetchCustomSource } =
   await import('@/lib/discovery/custom-sources');
 const { runCustomDiscovery } = await import('@/lib/discovery');
@@ -96,47 +101,70 @@ test('SSRF guard allows only public https hosts on the default port', async () =
   );
 });
 
-test('external loader refuses redirects and oversized bodies', async () => {
+test('external loader follows only safe redirects and refuses oversized bodies', async () => {
   globalThis.fetch = async (_input, init) => {
-    assert.equal(init.redirect, 'error');
+    assert.equal(init.redirect, 'manual');
     assert.equal(init.cache, 'no-store');
     return new Response('x'.repeat(EXTERNAL_MAX_BYTES + 1));
   };
   await assert.rejects(loadExternalSource(FEED_URL), /te groot/);
   globalThis.fetch = async () => new Response(null, { status: 404 });
   await assert.rejects(loadExternalSource(FEED_URL), /HTTP 404/);
-  globalThis.fetch = async () => new Response('[]');
-  assert.equal(await loadExternalSource(FEED_URL), '[]');
+  // Redirect naar een intern adres: geweigerd vóór het ophalen.
+  globalThis.fetch = async () =>
+    new Response(null, { status: 302, headers: { location: 'https://10.0.0.5/feed.json' } });
+  await assert.rejects(loadExternalSource(FEED_URL), /niet-publiek/);
+  // Redirect naar een publiek adres: gevolgd, met content-type en eind-URL.
+  const seen = [];
+  globalThis.fetch = async (input) => {
+    seen.push(String(input));
+    return seen.length === 1
+      ? new Response(null, { status: 301, headers: { location: '/v2/feed.json' } })
+      : new Response('[]', { headers: { 'content-type': 'application/json' } });
+  };
+  const doc = await loadExternalDocument(FEED_URL);
+  assert.equal(doc.text, '[]');
+  assert.equal(doc.contentType, 'application/json');
+  assert.equal(doc.url, 'https://93.184.215.14/v2/feed.json');
+  globalThis.fetch = async () =>
+    new Response(null, { status: 302, headers: { location: FEED_URL } });
+  await assert.rejects(loadExternalSource(FEED_URL), /Te veel redirects/);
 });
 
 test('create-request validation whitelists fields, trims, and rejects reserved names', async () => {
-  const valid = { name: '  confs.tech   python ', url: FEED_URL, format: 'confs-tech-json' };
+  const valid = { name: '  confs.tech   python ', url: FEED_URL };
   assert.deepEqual(await parseCreateCustomSource(valid, publicResolver), {
     name: 'confs.tech python',
     url: FEED_URL,
-    format: 'confs-tech-json',
   });
+  assert.deepEqual(
+    await parseCreateCustomSource({ ...valid, defaultCategory: 'testing' }, publicResolver),
+    { name: 'confs.tech python', url: FEED_URL, defaultCategory: 'testing' },
+  );
   for (const body of [
     null,
     [],
     { ...valid, extra: 1 },
+    // Het formaat kiest de client niet meer; de server herkent het.
+    { ...valid, format: 'confs-tech-json' },
+    { ...valid, defaultCategory: 'marketing' },
     { ...valid, name: '' },
     { ...valid, name: 'x'.repeat(61) },
     { ...valid, name: 'Confs-Tech' },
     { ...valid, url: 'http://example.com/feed.json' },
     { ...valid, url: 'https://10.0.0.1/feed.json' },
-    { ...valid, format: 'html' },
-    { name: 'a', url: FEED_URL },
+    { name: 'a' },
   ]) {
     await assert.rejects(parseCreateCustomSource(body, publicResolver), JSON.stringify(body));
   }
 });
 
-test('custom sources run through the existing parsers with their own name and URL', async () => {
-  const load = async () => JSON.stringify([record, null]);
+test('custom sources with a known format run through the existing parsers', async () => {
+  const doc = (text) => async () => ({ text, contentType: '', url: FEED_URL });
+  const base = { url: FEED_URL, config: null, default_category: 'development' };
   const json = await fetchCustomSource(
-    { name: 'Python 2027', url: FEED_URL, format: 'confs-tech-json' },
-    load,
+    { ...base, name: 'Python 2027', format: 'confs-tech-json' },
+    doc(JSON.stringify([record, null])),
   );
   assert.equal(json.items.length, 1);
   assert.equal(json.items[0].source_name, 'Python 2027');
@@ -146,8 +174,8 @@ test('custom sources run through the existing parsers with their own name and UR
   assert.match(json.errors[0], /record 2/);
 
   const yaml = await fetchCustomSource(
-    { name: 'Testing mirror', url: FEED_URL, format: 'testing-conferences-yaml' },
-    async () => testingYaml,
+    { ...base, name: 'Testing mirror', format: 'testing-conferences-yaml' },
+    doc(testingYaml),
   );
   assert.deepEqual(yaml.errors, []);
   assert.equal(yaml.items[0].source_name, 'Testing mirror');
@@ -155,7 +183,7 @@ test('custom sources run through the existing parsers with their own name and UR
   assert.equal(yaml.items[0].category, 'test-automation');
 
   const failed = await fetchCustomSource(
-    { name: 'Down', url: FEED_URL, format: 'confs-tech-json' },
+    { ...base, name: 'Down', format: 'confs-tech-json' },
     async () => {
       throw new Error('HTTP 503');
     },
@@ -173,6 +201,8 @@ test('custom discovery run upserts idempotently and endpoint validates sourceId'
     name: 'Python 2027',
     url: FEED_URL,
     format: 'confs-tech-json',
+    config: null,
+    default_category: 'development',
     created_at: '2026-11-19T10:00:00Z',
   };
   const conferences = new Map();

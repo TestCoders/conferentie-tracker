@@ -16,7 +16,7 @@ const LABELS: Record<EnrichTarget, string> = {
   conferences: 'Conferenties aanvullen',
 };
 
-export function AiEnrichmentPanel({ token }: { token: string }) {
+export function AiEnrichmentPanel() {
   const [limit, setLimit] = useState(6);
   const [running, setRunning] = useState<EnrichTarget | null>(null);
   const [result, setResult] = useState<EnrichResponse | null>(null);
@@ -30,7 +30,7 @@ export function AiEnrichmentPanel({ token }: { token: string }) {
       const body: EnrichRequest = target === 'conferences' ? { target, limit } : { target };
       const res = await fetch('/api/admin/enrich', {
         method: 'POST',
-        headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(body),
       });
       const json = (await res.json().catch(() => null)) as EnrichResponse | ErrorResponse | null;
@@ -64,7 +64,7 @@ export function AiEnrichmentPanel({ token }: { token: string }) {
           type="button"
           className={BTN_PRIMARY}
           onClick={() => run('costs')}
-          disabled={!token || running !== null}
+          disabled={running !== null}
         >
           {running === 'costs' ? 'Bezig…' : '▶ Aannames per land verversen'}
         </button>
@@ -86,7 +86,7 @@ export function AiEnrichmentPanel({ token }: { token: string }) {
           type="button"
           className={BTN_SECONDARY}
           onClick={() => run('conferences')}
-          disabled={!token || running !== null}
+          disabled={running !== null}
         >
           {running === 'conferences' ? 'Bezig…' : '▶ Conferenties aanvullen'}
         </button>

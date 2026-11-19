@@ -1,5 +1,5 @@
 'use client';
-// Eigenaar: D. Token alleen in React state — niet in URL, localStorage of source code.
+// Beheer wordt server-side beschermd door de Microsoft-sessie en Entra-adminrol.
 import { useState } from 'react';
 import { ConferenceRow } from '@/components/admin/ConferenceRow';
 import { AiEnrichmentPanel } from '@/components/admin/AiEnrichmentPanel';
@@ -19,6 +19,7 @@ import {
   type Conference,
   type ConferencePatch,
   type ConferenceStatus,
+  type AnalyzeSourceRequest,
   type CreateCustomSourceRequest,
   type CustomDiscoverySource,
   type DiscoveryRunRequest,
@@ -26,6 +27,7 @@ import {
   type DiscoverySource,
   type ErrorResponse,
   type ListResponse,
+  type SourceAnalysis,
 } from '@/lib/types';
 
 type StatusFilter = ConferenceStatus | 'all';
@@ -46,11 +48,11 @@ async function readError(res: Response): Promise<string> {
 }
 
 export function AdminPanel() {
-  const [token, setToken] = useState('');
   const [source, setSource] = useState<SourceChoice>('confs-tech');
   const [customSources, setCustomSources] = useState<CustomDiscoverySource[] | null>(null);
   const [sourcesError, setSourcesError] = useState<string | null>(null);
   const [sourcesLoading, setSourcesLoading] = useState(false);
+
   const [result, setResult] = useState<DiscoveryRunResponse | null>(null);
   const [runError, setRunError] = useState<string | null>(null);
   const [running, setRunning] = useState(false);
@@ -60,7 +62,7 @@ export function AdminPanel() {
   const [loading, setLoading] = useState(false);
   const [filter, setFilter] = useState<StatusFilter>('all');
 
-  const authHeaders = { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' };
+  const authHeaders = { 'Content-Type': 'application/json' };
 
   async function loadConferences() {
     setLoading(true);
@@ -93,6 +95,20 @@ export function AdminPanel() {
       setSourcesError(err instanceof Error ? err.message : 'Netwerkfout');
     } finally {
       setSourcesLoading(false);
+    }
+  }
+
+  async function analyzeSource(url: string): Promise<SourceAnalysis | string> {
+    try {
+      const res = await fetch('/api/admin/sources/analyze', {
+        method: 'POST',
+        headers: authHeaders,
+        body: JSON.stringify({ url } satisfies AnalyzeSourceRequest),
+      });
+      if (!res.ok) return await readError(res);
+      return (await res.json()) as SourceAnalysis;
+    } catch (err) {
+      return err instanceof Error ? err.message : 'Netwerkfout';
     }
   }
 
@@ -179,23 +195,6 @@ export function AdminPanel() {
 
   return (
     <div className="space-y-10">
-      <section className={`${CARD} space-y-2`}>
-        <label className={FIELD_LABEL}>
-          --admin-token
-          <input
-            type="password"
-            className={FIELD}
-            value={token}
-            onChange={(e) => setToken(e.target.value)}
-            autoComplete="off"
-            placeholder="Plak hier het ADMIN_TOKEN"
-          />
-        </label>
-        <p className="text-ink-muted text-xs">
-          Het token blijft alleen in deze pagina (React state) en verdwijnt bij herladen.
-        </p>
-      </section>
-
       <section className="space-y-4">
         <div>
           <p className={PROMPT}>$ ./discovery --run</p>
@@ -227,12 +226,7 @@ export function AdminPanel() {
               )}
             </select>
           </label>
-          <button
-            type="button"
-            className={BTN_PRIMARY}
-            onClick={runDiscovery}
-            disabled={!token || running}
-          >
+          <button type="button" className={BTN_PRIMARY} onClick={runDiscovery} disabled={running}>
             {running ? 'Bezig…' : '▶ Run discovery'}
           </button>
         </div>
@@ -316,8 +310,9 @@ export function AdminPanel() {
         sources={customSources}
         loading={sourcesLoading}
         error={sourcesError}
-        disabled={!token}
+        disabled={false}
         onLoad={loadSources}
+        onAnalyze={analyzeSource}
         onCreate={createSource}
         onDelete={deleteSource}
       />
@@ -332,7 +327,7 @@ export function AdminPanel() {
             type="button"
             className={BTN_SECONDARY}
             onClick={loadConferences}
-            disabled={!token || loading}
+            disabled={loading}
           >
             {loading ? 'Laden…' : items ? '↻ Vernieuwen' : '↓ Laden'}
           </button>
@@ -379,11 +374,11 @@ export function AdminPanel() {
         )}
       </section>
 
-      <AiEnrichmentPanel token={token} />
+      <AiEnrichmentPanel />
 
-      <CostAssumptionsPanel token={token} />
+      <CostAssumptionsPanel />
 
-      <ExperiencesModerationPanel token={token} />
+      <ExperiencesModerationPanel />
     </div>
   );
 }

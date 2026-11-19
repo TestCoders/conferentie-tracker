@@ -85,12 +85,18 @@ Regels:
 - Geen environment variable met `NEXT_PUBLIC_` voor secrets. Secrets: `SUPABASE_SERVICE_ROLE_KEY`, `ADMIN_TOKEN`.
 - Beheer-endpoints beginnen met:
   ```ts
-  const denied = requireAdmin(request);
+  const denied = await requireAdmin(request);
   if (denied) return denied;
   ```
 - Fouten: `jsonError(message, status)` uit `@/lib/http` → `{ "error": "..." }` met passende status (400 validatie, 401 auth, 404 niet gevonden, 500 server, 501 nog niet gebouwd).
 - Valideer **alle** request-input server-side (types, lengtes, whitelist van velden). Nooit ongefilterde body naar de DB.
-- Discovery: alleen vaste, bekende bron-URL's; nooit een URL uit gebruikersinput fetchen. Upsert op `(canonical_url, start_date)`, nooit blind `insert`.
+- Discovery: upsert op `(canonical_url, start_date)`, nooit blind `insert`.
+- Externe URL's fetchen: vaste, bekende bron-URL's mogen altijd. Een URL die niet in de code staat
+  (eigen feed van een beheerder, officiële website voor AI-verrijking of afbeeldingen) **alleen**
+  achter `requireAdmin` of vanuit een admin-run, en **alleen** via een SSRF-veilige helper
+  (`assertSafeExternalUrl` / `loadExternalSource` in `@/lib/discovery/fetch-source`, of `fetchPage`
+  in `@/lib/ai/safe-fetch`): alleen `https`, publieke host, redirects per stap gecontroleerd,
+  timeout en groottelimiet. Nooit een URL uit publieke (niet-admin) input fetchen.
 - Geen fictieve conferenties of reviews seeden. Mocks alleen tijdelijk in je eigen UI-branch en vóór merge verwijderen.
 
 ### Next.js 16 / React 19
@@ -121,6 +127,14 @@ curl -s -X POST localhost:3000/api/discovery/run \
   -H "Authorization: Bearer $ADMIN_TOKEN" -H 'Content-Type: application/json' \
   -d '{"source":"confs-tech"}' | jq
 ```
+
+## Authenticatie na demo 1
+
+Microsoft Entra-login gebruikt de server-side Auth.js-sessie. `requireAdmin(request)` is asynchroon:
+altijd `await` gebruiken vóór databasewerk. De gedeelde `ADMIN_TOKEN` geeft geen toegang meer.
+User/Admin-rechten komen uit de vaste tenant en toegewezen app-rollen. Bijdragen vereisen
+`requireUser(request)`; auteur en user-ID worden server-side bepaald. Zie
+[`docs/entra-auth.md`](docs/entra-auth.md) voor contractmigratie, sessiegedrag en tests.
 
 <!-- BEGIN:nextjs-agent-rules -->
 
