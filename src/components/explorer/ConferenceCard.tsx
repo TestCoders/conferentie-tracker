@@ -1,28 +1,96 @@
 // Eigenaar: C.
 import type { Conference } from '@/lib/types';
+import { CATEGORY_LABELS, formatDate, formatDateRange, formatLocation } from './format';
+import { CATEGORY_STYLES } from './category-styles';
+import { Value } from './Value';
 
-const UNKNOWN = 'Onbekend';
+type Props = {
+  conference: Conference;
+  selected: boolean;
+  selectDisabled: boolean;
+  onToggleSelect: (id: string) => void;
+};
 
-export function ConferenceCard({ conference: c }: { conference: Conference }) {
-  const location = [c.city, c.country].filter(Boolean).join(', ') || UNKNOWN;
-  const dates =
-    c.end_date && c.end_date !== c.start_date ? `${c.start_date} – ${c.end_date}` : c.start_date;
+const LABEL = 'font-mono text-xs leading-5 text-ink-muted';
+
+export function ConferenceCard({ conference: c, selected, selectDisabled, onToggleSelect }: Props) {
+  const checkboxId = `compare-${c.id}`;
 
   return (
-    <article className="rounded-lg border border-black/10 p-4 dark:border-white/15">
-      <h2 className="font-semibold">{c.name}</h2>
-      <p className="text-sm">{dates}</p>
-      <p className="text-sm">{location}</p>
-      <p className="text-sm">Categorie: {c.category}</p>
-      <p className="text-sm">CFP: {c.cfp_deadline ?? UNKNOWN}</p>
-      <p className="mt-2 flex gap-3 text-sm">
-        <a className="underline" href={c.official_url} target="_blank" rel="noopener noreferrer">
-          Website
-        </a>
-        <a className="underline" href={c.source_url} target="_blank" rel="noopener noreferrer">
-          Bron: {c.source_name}
-        </a>
-      </p>
+    <article
+      className={`bg-surface flex h-full flex-col rounded-md border p-4 transition hover:-translate-y-0.5 hover:shadow-md ${
+        selected ? 'border-signal ring-signal/30 ring-2' : 'border-hairline'
+      }`}
+    >
+      <div className="flex items-start justify-between gap-3">
+        <h2 className="font-display text-lg leading-snug font-semibold">{c.name}</h2>
+        <span
+          className={`shrink-0 rounded px-2 py-0.5 font-mono text-[11px] font-semibold ${CATEGORY_STYLES[c.category]}`}
+        >
+          {CATEGORY_LABELS[c.category]}
+        </span>
+      </div>
+
+      <dl className="mt-3 mb-4 grid grid-cols-[auto_1fr] gap-x-3 gap-y-1 text-sm">
+        <dt className={LABEL}>datum</dt>
+        <dd>{formatDateRange(c)}</dd>
+        <dt className={LABEL}>locatie</dt>
+        <dd>
+          <Value text={formatLocation(c)} />
+        </dd>
+        <dt className={LABEL}>cfp</dt>
+        <dd>
+          {c.cfp_url ? (
+            <a
+              className="text-signal hover:underline"
+              href={c.cfp_url}
+              target="_blank"
+              rel="noopener noreferrer"
+            >
+              {c.cfp_deadline ? formatDate(c.cfp_deadline) : 'Call for papers'}
+            </a>
+          ) : (
+            <Value text={formatDate(c.cfp_deadline)} />
+          )}
+        </dd>
+      </dl>
+
+      <div className="border-hairline mt-auto flex flex-wrap items-center justify-between gap-3 border-t pt-3 text-sm">
+        <div className="flex gap-3">
+          <a
+            className="text-signal font-semibold hover:underline"
+            href={c.official_url}
+            target="_blank"
+            rel="noopener noreferrer"
+          >
+            Website →
+          </a>
+          <a
+            className={`${LABEL} hover:underline`}
+            href={c.source_url}
+            target="_blank"
+            rel="noopener noreferrer"
+          >
+            bron: {c.source_name}
+          </a>
+        </div>
+        <label
+          htmlFor={checkboxId}
+          className={`flex items-center gap-2 font-mono text-xs ${
+            selectDisabled ? 'opacity-40' : 'cursor-pointer'
+          }`}
+        >
+          <input
+            id={checkboxId}
+            type="checkbox"
+            className="accent-signal size-4"
+            checked={selected}
+            disabled={selectDisabled}
+            onChange={() => onToggleSelect(c.id)}
+          />
+          vergelijk
+        </label>
+      </div>
     </article>
   );
 }
