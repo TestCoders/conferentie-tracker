@@ -17,6 +17,12 @@ registerHooks({
 const { normalizeUrl } = await import('@/lib/discovery/normalize-url');
 const { parseConfsTechRecord, fetchConfsTech, CONFS_TECH_SOURCES } =
   await import('@/lib/discovery/confs-tech');
+const {
+  TESTING_CONFERENCES_SOURCE,
+  parseTestingDates,
+  parseTestingConferencesYaml,
+  fetchTestingConferences,
+} = await import('@/lib/discovery/testing-conferences');
 const { deduplicateConferences, runDiscovery } = await import('@/lib/discovery');
 const { POST } = await import('@/app/api/discovery/run/route');
 
@@ -29,6 +35,12 @@ const record = {
   city: 'Amsterdam',
   country: 'Netherlands',
 };
+// Actual TestingConferences source record, including its quoted English date range.
+const testingYaml = `- name: Test Automation Days 2027
+  location: Hilversum, the Netherlands
+  dates: "March 3-4, 2027"
+  url: https://www.testautomationdays.com/?utm_source=testingconferences
+`;
 const originalFetch = globalThis.fetch;
 const originalEnv = {
   SUPABASE_URL: process.env.SUPABASE_URL,
@@ -95,88 +107,163 @@ test('adapter retains valid records and reports failed feeds and invalid records
   assert.match(result.errors.join('\n'), /HTTP 503/);
 });
 
-test('repeat imports update without duplicates, preserve moderation, and record failures', async () => {
-  process.env.SUPABASE_URL = 'https://discovery-test.invalid';
-  process.env.SUPABASE_SERVICE_ROLE_KEY = 'test-only-key';
-  const conferences = new Map();
-  const runs = [];
-  let rejectUpdates = false;
-  globalThis.fetch = async (input, init) => {
-    const request = new Request(input, init);
-    const url = new URL(request.url);
-    if (CONFS_TECH_SOURCES.includes(request.url)) {
-      return Response.json([record]);
-    }
-    assert.equal(url.origin, 'https://discovery-test.invalid');
-    const body = await request.json();
-    if (url.pathname.endsWith('/ingestion_runs')) {
-      assert.equal(typeof body, 'object');
-      assert.ok(body && !Array.isArray(body));
-      if (request.method === 'POST') {
-        runs.push({ ...body, id: String(runs.length + 1) });
-        return Response.json({ id: String(runs.length) });
-      }
-      Object.assign(runs[Number(url.searchParams.get('id')?.slice(3)) - 1], body);
-      return new Response(null, { status: 204 });
-    }
-    assert.ok(url.pathname.endsWith('/conferences'));
-    assert.equal(url.searchParams.get('on_conflict'), 'canonical_url,start_date');
-    assert.ok(Array.isArray(body));
-    const ignore = request.headers.get('prefer')?.includes('resolution=ignore-duplicates');
-    if (!ignore && rejectUpdates)
-      return Response.json({ message: 'database unavailable' }, { status: 503 });
-    const returned = [];
-    for (const row of body) {
-      const key = JSON.stringify([row.canonical_url, row.start_date]);
-      assert.equal('status' in row, false);
-      if (conferences.has(key) && ignore) continue;
-      conferences.set(key, { status: 'approved', ...conferences.get(key), ...row });
-      returned.push({ canonical_url: row.canonical_url, start_date: row.start_date });
-    }
-    return Response.json(returned);
-  };
-  assert.deepEqual(await runDiscovery('confs-tech'), {
-    source: 'confs-tech',
-    found: 1,
-    inserted: 1,
-    updated: 0,
-    errors: [],
+test('YAML mapping handles quoted strings, date ranges and conservative classification', () => {
+  const result = parseTestingConferencesYaml(testingYaml);
+  assert.deepEqual(result.errors, []);
+  const item = result.items[0];
+  assert.equal(item.category, 'test-automation');
+  assert.equal(item.start_date, '2027-03-03');
+  assert.equal(item.end_date, '2027-03-04');
+  assert.equal(item.city, 'Hilversum');
+  assert.equal(item.country, 'the Netherlands');
+  assert.equal(item.canonical_url, 'https://testautomationdays.com');
+  assert.equal(item.source_url, TESTING_CONFERENCES_SOURCE);
+  assert.equal(item.cfp_deadline, null);
+  assert.equal(item.price_text, null);
+  const quoted = parseTestingConferencesYaml(`- name: "expo:QA 27"
+  location: Online
+  dates: "May 25, 2027"
+  url: https://expoqa.com/
+`);
+  assert.equal(quoted.items[0].name, 'expo:QA 27');
+  assert.equal(quoted.items[0].category, 'testing');
+  assert.equal(quoted.items[0].city, null);
+  assert.equal(quoted.items[0].country, null);
+  assert.equal(quoted.items[0].end_date, null);
+  assert.deepEqual(parseTestingDates('September 30–October 2, 2027'), {
+    start_date: '2027-09-30',
+    end_date: '2027-10-02',
   });
-  const stored = [...conferences.values()][0];
-  stored.status = 'rejected';
-  assert.deepEqual(await runDiscovery('confs-tech'), {
-    source: 'confs-tech',
-    found: 1,
-    inserted: 0,
-    updated: 1,
-    errors: [],
+  for (const dates of ['2027 TBA', 'February 29, 2027', 'March 5-3, 2027', 'NotAMonth 1, 2027']) {
+    assert.throws(() => parseTestingDates(dates), dates);
+  }
+  assert.deepEqual(parseTestingDates('February 29, 2028'), {
+    start_date: '2028-02-29',
+    end_date: null,
   });
-  assert.equal(conferences.size, 1);
-  assert.equal([...conferences.values()][0].status, 'rejected');
-  assert.equal(typeof [...conferences.values()][0].last_checked_at, 'string');
-  assert.equal(runs[1].status, 'success');
-  rejectUpdates = true;
-  await assert.rejects(runDiscovery('confs-tech'), /bijwerken mislukt/);
-  assert.equal(runs[2].status, 'failed');
-  assert.equal(runs[2].inserted_count, 0);
-  assert.match(String(runs[2].error_message), /bijwerken mislukt/);
-  rejectUpdates = false;
-  conferences.clear();
-  const concurrent = await Promise.all([runDiscovery('confs-tech'), runDiscovery('confs-tech')]);
-  assert.equal(conferences.size, 1);
-  assert.equal(
-    concurrent.reduce((sum, result) => sum + result.inserted, 0),
-    1,
-  );
-  assert.equal(
-    concurrent.reduce((sum, result) => sum + result.updated, 0),
-    1,
-  );
-  globalThis.fetch = async () => new Response(null, { status: 503 });
-  const partial = await fetchConfsTech();
-  assert.equal(partial.items.length, 0);
-  assert.equal(partial.errors.length, 2);
 });
+
+test('YAML rejects malformed documents, duplicate keys, aliases and unknown dates without losing valid rows', () => {
+  for (const text of [
+    '- name: [',
+    '- name: A\n  name: B',
+    'name: not-a-list',
+    '- &record { name: A }\n- *record',
+    '- name: !!js/function value',
+  ]) {
+    assert.throws(() => parseTestingConferencesYaml(text), text);
+  }
+  const mixed = parseTestingConferencesYaml(`${testingYaml}\n- name: TestGuild IRL New York 2027
+  location: New York, NY, USA
+  dates: "2027 TBA"
+  url: https://testguild.com/irl
+`);
+  assert.equal(mixed.items.length, 1);
+  assert.equal(mixed.errors.length, 1);
+  assert.match(mixed.errors[0], /Record 2/);
+});
+
+test('YAML fetch uses only the fixed URL and reports network and parse failures', async () => {
+  globalThis.fetch = async (input, init) => {
+    assert.equal(input, TESTING_CONFERENCES_SOURCE);
+    assert.equal(init.redirect, 'error');
+    assert.equal(init.cache, 'no-store');
+    return new Response(testingYaml);
+  };
+  assert.equal((await fetchTestingConferences()).items.length, 1);
+  globalThis.fetch = async () => new Response(null, { status: 503 });
+  assert.match((await fetchTestingConferences()).errors[0], /HTTP 503/);
+  globalThis.fetch = async () => new Response('- name: [');
+  const invalid = await fetchTestingConferences();
+  assert.equal(invalid.items.length, 0);
+  assert.match(invalid.errors[0], /Ongeldige YAML/);
+});
+
+for (const source of ['confs-tech', 'testing-conferences']) {
+  test(`${source}: repeat imports update without duplicates, preserve moderation, and record failures`, async () => {
+    process.env.SUPABASE_URL = 'https://discovery-test.invalid';
+    process.env.SUPABASE_SERVICE_ROLE_KEY = 'test-only-key';
+    const conferences = new Map();
+    const runs = [];
+    let rejectUpdates = false;
+    globalThis.fetch = async (input, init) => {
+      const request = new Request(input, init);
+      const url = new URL(request.url);
+      if (CONFS_TECH_SOURCES.includes(request.url)) {
+        return Response.json([record]);
+      }
+      if (request.url === TESTING_CONFERENCES_SOURCE) return new Response(testingYaml);
+      assert.equal(url.origin, 'https://discovery-test.invalid');
+      const body = await request.json();
+      if (url.pathname.endsWith('/ingestion_runs')) {
+        assert.equal(typeof body, 'object');
+        assert.ok(body && !Array.isArray(body));
+        if (request.method === 'POST') {
+          runs.push({ ...body, id: String(runs.length + 1) });
+          return Response.json({ id: String(runs.length) });
+        }
+        Object.assign(runs[Number(url.searchParams.get('id')?.slice(3)) - 1], body);
+        return new Response(null, { status: 204 });
+      }
+      assert.ok(url.pathname.endsWith('/conferences'));
+      assert.equal(url.searchParams.get('on_conflict'), 'canonical_url,start_date');
+      assert.ok(Array.isArray(body));
+      const ignore = request.headers.get('prefer')?.includes('resolution=ignore-duplicates');
+      if (!ignore && rejectUpdates)
+        return Response.json({ message: 'database unavailable' }, { status: 503 });
+      const returned = [];
+      for (const row of body) {
+        const key = JSON.stringify([row.canonical_url, row.start_date]);
+        assert.equal('status' in row, false);
+        if (conferences.has(key) && ignore) continue;
+        conferences.set(key, { status: 'approved', ...conferences.get(key), ...row });
+        returned.push({ canonical_url: row.canonical_url, start_date: row.start_date });
+      }
+      return Response.json(returned);
+    };
+    assert.deepEqual(await runDiscovery(source), {
+      source,
+      found: 1,
+      inserted: 1,
+      updated: 0,
+      errors: [],
+    });
+    const stored = [...conferences.values()][0];
+    stored.status = 'rejected';
+    assert.deepEqual(await runDiscovery(source), {
+      source,
+      found: 1,
+      inserted: 0,
+      updated: 1,
+      errors: [],
+    });
+    assert.equal(conferences.size, 1);
+    assert.equal([...conferences.values()][0].status, 'rejected');
+    assert.equal(typeof [...conferences.values()][0].last_checked_at, 'string');
+    assert.equal(runs[1].status, 'success');
+    rejectUpdates = true;
+    await assert.rejects(runDiscovery(source), /bijwerken mislukt/);
+    assert.equal(runs[2].status, 'failed');
+    assert.equal(runs[2].inserted_count, 0);
+    assert.match(String(runs[2].error_message), /bijwerken mislukt/);
+    rejectUpdates = false;
+    conferences.clear();
+    const concurrent = await Promise.all([runDiscovery(source), runDiscovery(source)]);
+    assert.equal(conferences.size, 1);
+    assert.equal(
+      concurrent.reduce((sum, result) => sum + result.inserted, 0),
+      1,
+    );
+    assert.equal(
+      concurrent.reduce((sum, result) => sum + result.updated, 0),
+      1,
+    );
+    globalThis.fetch = async () => new Response(null, { status: 503 });
+    const partial = await fetchConfsTech();
+    assert.equal(partial.items.length, 0);
+    assert.equal(partial.errors.length, 2);
+  });
+}
 
 test('endpoint checks auth before parsing and rejects invalid or unsupported input', async () => {
   process.env.ADMIN_TOKEN = 'test-only-admin';
@@ -199,7 +286,6 @@ test('endpoint checks auth before parsing and rejects invalid or unsupported inp
     assert.equal((await POST(request(body))).status, 400, body);
   }
   assert.equal((await POST(request('x'.repeat(1001)))).status, 400);
-  assert.equal((await POST(request('{"source":"testing-conferences"}'))).status, 501);
   globalThis.fetch = async (input, init) => {
     const request = new Request(input, init);
     if (request.url.includes('/ingestion_runs')) {
@@ -214,4 +300,9 @@ test('endpoint checks auth before parsing and rejects invalid or unsupported inp
   assert.equal(result.source, 'confs-tech');
   assert.equal(result.inserted, 0);
   assert.equal(result.errors.length, 2);
+  const yamlResponse = await POST(request('{"source":"testing-conferences"}'));
+  assert.equal(yamlResponse.status, 200);
+  const yamlResult = await yamlResponse.json();
+  assert.equal(yamlResult.source, 'testing-conferences');
+  assert.equal(yamlResult.errors.length, 1);
 });

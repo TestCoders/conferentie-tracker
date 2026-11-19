@@ -1,40 +1,12 @@
 // Eigenaar: B. Adapter voor de live JSON-feed van confs.tech.
 import type { ConferenceInput } from '@/lib/types';
 import { normalizeUrl } from '@/lib/discovery/normalize-url';
+import { readText as text, readDate as date, readUrl as url } from '@/lib/discovery/validation';
 
 export const CONFS_TECH_SOURCES = [
   'https://raw.githubusercontent.com/tech-conferences/conference-data/main/conferences/2027/javascript.json',
   'https://raw.githubusercontent.com/tech-conferences/conference-data/main/conferences/2027/devops.json',
 ] as const;
-
-function text(value: unknown, field: string): string | null {
-  if (value === undefined || value === null || value === '') return null;
-  if (typeof value !== 'string' || value.length > 2000) {
-    throw new Error(`Ongeldig veld: ${field}`);
-  }
-  return value.trim() || null;
-}
-
-function date(value: unknown, field: string): string | null {
-  const result = text(value, field);
-  if (result === null) return null;
-  const timestamp = Date.parse(`${result}T00:00:00Z`);
-  if (
-    !/^\d{4}-\d{2}-\d{2}$/.test(result) ||
-    !Number.isFinite(timestamp) ||
-    new Date(timestamp).toISOString().slice(0, 10) !== result
-  ) {
-    throw new Error(`Ongeldige datum: ${field}`);
-  }
-  return result;
-}
-
-function url(value: unknown, field: string): string | null {
-  const result = text(value, field);
-  if (result === null) return null;
-  normalizeUrl(result);
-  return result;
-}
 
 export function parseConfsTechRecord(value: unknown, sourceUrl: string): ConferenceInput {
   if (typeof value !== 'object' || value === null || Array.isArray(value)) {

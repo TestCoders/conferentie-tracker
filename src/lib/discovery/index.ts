@@ -1,5 +1,6 @@
 // Eigenaar: B. Orchestratie: bron ophalen → upsert op (canonical_url, start_date) → ingestion_runs.
 import { fetchConfsTech } from '@/lib/discovery/confs-tech';
+import { fetchTestingConferences } from '@/lib/discovery/testing-conferences';
 import { getSupabaseAdmin } from '@/lib/supabase-admin';
 import type { ConferenceInput, DiscoveryRunResponse, DiscoverySource } from '@/lib/types';
 
@@ -18,7 +19,7 @@ export function deduplicateConferences(items: ConferenceInput[]): ConferenceInpu
 }
 
 export async function runDiscovery(source: DiscoverySource): Promise<DiscoveryRunResponse> {
-  if (source !== 'confs-tech') throw new Error('Deze discoverybron is nog niet beschikbaar');
+  const adapter = source === 'confs-tech' ? fetchConfsTech : fetchTestingConferences;
   const db = getSupabaseAdmin();
   const { data: run, error: startError } = await db
     .from('ingestion_runs')
@@ -36,7 +37,7 @@ export async function runDiscovery(source: DiscoverySource): Promise<DiscoveryRu
   };
   let failure: Error | null = null;
   try {
-    const fetched = await fetchConfsTech();
+    const fetched = await adapter();
     const items = deduplicateConferences(fetched.items);
     result.found = items.length;
     result.errors.push(...fetched.errors);

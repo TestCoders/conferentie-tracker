@@ -31,12 +31,8 @@ export async function POST(request: Request) {
   if (typeof source !== 'string' || !ALLOWED_SOURCES.includes(source as DiscoverySource)) {
     return jsonError('Onbekende discoverybron', 400);
   }
-  if (source === 'testing-conferences') {
-    return jsonError('TestingConferences-adapter is nog niet gebouwd', 501);
-  }
-
   try {
-    const result = await runDiscovery('confs-tech');
+    const result = await runDiscovery(source as DiscoverySource);
     return Response.json(result satisfies DiscoveryRunResponse);
   } catch (error) {
     return jsonError(error instanceof Error ? error.message : 'Discovery mislukt', 500);
