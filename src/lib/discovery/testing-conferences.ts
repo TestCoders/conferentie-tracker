@@ -43,18 +43,24 @@ export function parseTestingDates(
   return { start_date: startDate, end_date: endDate };
 }
 
-function parseLocation(value: unknown): Pick<ConferenceInput, 'city' | 'country'> {
+function parseLocation(value: unknown): Pick<ConferenceInput, 'city' | 'country' | 'online_only'> {
   const text = readText(value, 'location');
-  if (!text || /^(online|tba|tbd)$/i.test(text)) return { city: null, country: null };
+  // Alleen 'Online' is online-only; 'X and Online' is hybride en houdt zijn fysieke plaats.
+  if (text && /^online$/i.test(text)) return { city: null, country: null, online_only: true };
+  if (!text || /^(tba|tbd)$/i.test(text)) return { city: null, country: null, online_only: false };
   const parts = text
     .replace(/\s+and Online$/i, '')
     .split(',')
     .map((part) => part.trim());
   if (parts.at(-1)?.toLowerCase() === 'europe') parts.pop();
   if (parts.length < 2 || parts.some((part) => !part || /\b(tba|tbd|online)\b/i.test(part))) {
-    return { city: null, country: null };
+    return { city: null, country: null, online_only: false };
   }
-  return { city: parts.slice(0, -1).join(', '), country: parts.at(-1) ?? null };
+  return {
+    city: parts.slice(0, -1).join(', '),
+    country: parts.at(-1) ?? null,
+    online_only: false,
+  };
 }
 
 export function parseTestingConferenceRecord(value: unknown): ConferenceInput {

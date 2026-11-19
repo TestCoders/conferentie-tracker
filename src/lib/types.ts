@@ -26,12 +26,22 @@ export type Conference = {
   cfp_url: string | null;
   cfp_deadline: string | null;
   price_text: string | null;
+  /** Alleen online (geen fysieke locatie): geen reis- of hotelkosten. Gezet door discovery. */
+  online_only: boolean;
+  /** Officiële ticketprijs per persoon in hele euro's, ingevuld door een beheerder. */
+  ticket_price_eur: number | null;
+  /** Bron van de ticketprijs (https). */
+  ticket_price_url: string | null;
   status: ConferenceStatus;
   last_checked_at: string;
 };
 
 /** Rij zoals de discovery-engine hem aanlevert voor een upsert (zonder DB-velden). */
-export type ConferenceInput = Omit<Conference, 'id' | 'status' | 'last_checked_at'> & {
+/** Zonder ticketvelden: die beheert een beheerder en mag een herimport niet overschrijven. */
+export type ConferenceInput = Omit<
+  Conference,
+  'id' | 'status' | 'last_checked_at' | 'ticket_price_eur' | 'ticket_price_url'
+> & {
   status?: ConferenceStatus;
 };
 
@@ -50,7 +60,15 @@ export type DiscoveryRunResponse = {
 };
 
 /** Velden die via PATCH /api/admin/conferences/:id aangepast mogen worden. */
-export const ADMIN_EDITABLE_FIELDS = ['status', 'name', 'city', 'country', 'cfp_deadline'] as const;
+export const ADMIN_EDITABLE_FIELDS = [
+  'status',
+  'name',
+  'city',
+  'country',
+  'cfp_deadline',
+  'ticket_price_eur',
+  'ticket_price_url',
+] as const;
 export type ConferencePatch = Partial<Pick<Conference, (typeof ADMIN_EDITABLE_FIELDS)[number]>>;
 
 export type Review = {
@@ -128,6 +146,7 @@ export type CostAssumption = {
 
 /** PUT /api/admin/cost-assumptions — upsert op genormaliseerd land. */
 export type UpsertCostAssumptionRequest = {
+  /** Land, of '*' voor de standaardaanname (landen zonder eigen aanname). */
   country: string;
   travelEur: number;
   hotelPerNightEur: number;
@@ -199,4 +218,4 @@ export type ExperienceConference = Pick<
 
 /** Kolommen die we teruggeven als Conference (geen created_at/updated_at). */
 export const CONFERENCE_COLUMNS =
-  'id,name,official_url,canonical_url,source_name,source_url,start_date,end_date,city,country,category,cfp_url,cfp_deadline,price_text,status,last_checked_at';
+  'id,name,official_url,canonical_url,source_name,source_url,start_date,end_date,city,country,category,cfp_url,cfp_deadline,price_text,online_only,ticket_price_eur,ticket_price_url,status,last_checked_at';

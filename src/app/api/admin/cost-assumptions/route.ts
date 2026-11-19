@@ -1,6 +1,11 @@
 // PUT (upsert) en DELETE ?country=… — kostenaannames per land beheren. Admin-token vereist.
 import { jsonError, requireAdmin } from '@/lib/http';
-import { COST_ASSUMPTION_COLUMNS, countryKey } from '@/lib/costs';
+import {
+  COST_ASSUMPTION_COLUMNS,
+  countryKey,
+  DEFAULT_COST_COUNTRY_KEY,
+  DEFAULT_COST_LABEL,
+} from '@/lib/costs';
 import { getSupabaseAdmin } from '@/lib/supabase-admin';
 import type { CostAssumption, UpsertCostAssumptionRequest } from '@/lib/types';
 
@@ -34,11 +39,13 @@ function parseUpsert(body: unknown): { key: string; label: string; travel: numbe
   if (!label || label.length > LABEL_MAX || CONTROL_RE.test(label)) {
     throw new Error(`country moet 1 t/m ${LABEL_MAX} tekens zijn`);
   }
-  const key = countryKey(label);
+  // '*' = standaardaanname voor landen zonder eigen aanname.
+  const isDefault = label === DEFAULT_COST_COUNTRY_KEY;
+  const key = isDefault ? DEFAULT_COST_COUNTRY_KEY : countryKey(label);
   if (!key) throw new Error('country is ongeldig');
   return {
     key,
-    label,
+    label: isDefault ? DEFAULT_COST_LABEL : label,
     travel: parseAmount(fields.travelEur, 'travelEur', TRAVEL_MAX),
     hotel: parseAmount(fields.hotelPerNightEur, 'hotelPerNightEur', HOTEL_MAX),
   };
@@ -83,7 +90,8 @@ export async function DELETE(request: Request) {
   const denied = requireAdmin(request);
   if (denied) return denied;
 
-  const key = countryKey(new URL(request.url).searchParams.get('country'));
+  const country = new URL(request.url).searchParams.get('country');
+  const key = country === DEFAULT_COST_COUNTRY_KEY ? DEFAULT_COST_COUNTRY_KEY : countryKey(country);
   if (!key) return jsonError('country is verplicht', 400);
 
   try {

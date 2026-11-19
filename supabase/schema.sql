@@ -18,6 +18,11 @@ create table if not exists public.conferences (
   cfp_url text,
   cfp_deadline date,
   price_text text,
+  -- Zie migrations/20261119_cost_estimate_coverage.sql.
+  online_only boolean not null default false,
+  ticket_price_eur integer check (ticket_price_eur between 0 and 20000),
+  ticket_price_url text
+    check (ticket_price_url like 'https://%' and char_length(ticket_price_url) <= 2000),
   status text not null default 'approved'
     check (status in ('pending', 'approved', 'rejected')),
   last_checked_at timestamptz not null default now(),
@@ -61,6 +66,7 @@ create table if not exists public.attendances (
 create index if not exists attendances_conference_id_idx on public.attendances (conference_id);
 
 -- Kostenaannames per land (zie ook migrations/20261119_cost_assumptions.sql).
+-- country_key '*' = standaardaanname voor landen zonder eigen aanname.
 create table if not exists public.cost_assumptions (
   country_key text primary key check (char_length(country_key) between 1 and 80),
   country_label text not null check (char_length(country_label) between 1 and 80),

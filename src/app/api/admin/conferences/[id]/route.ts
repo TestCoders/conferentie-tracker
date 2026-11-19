@@ -12,6 +12,8 @@ import {
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const NAME_MAX = 200;
 const PLACE_MAX = 100;
+const TICKET_MAX_EUR = 20000;
+const URL_MAX = 2000;
 
 function isValidDate(value: string): boolean {
   if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) return false;
@@ -70,6 +72,36 @@ function parsePatch(body: unknown): ConferencePatch {
       throw new Error('cfp_deadline moet een geldige datum (YYYY-MM-DD) of null zijn');
     }
     patch.cfp_deadline = deadline;
+  }
+
+  if ('ticket_price_eur' in input) {
+    const price = input.ticket_price_eur;
+    if (
+      price !== null &&
+      (typeof price !== 'number' || !Number.isInteger(price) || price < 0 || price > TICKET_MAX_EUR)
+    ) {
+      throw new Error(
+        `ticket_price_eur moet een geheel bedrag van 0 t/m ${TICKET_MAX_EUR} of null zijn`,
+      );
+    }
+    patch.ticket_price_eur = price;
+  }
+
+  if ('ticket_price_url' in input) {
+    let url = parseOptionalText(input.ticket_price_url, 'ticket_price_url', URL_MAX);
+    if (url !== null) {
+      let parsed: URL;
+      try {
+        parsed = new URL(url);
+      } catch {
+        throw new Error('ticket_price_url moet een geldige URL zijn');
+      }
+      if (parsed.protocol !== 'https:' || parsed.username || parsed.password) {
+        throw new Error('ticket_price_url moet een https-URL zonder inloggegevens zijn');
+      }
+      url = parsed.href;
+    }
+    patch.ticket_price_url = url;
   }
 
   if (Object.keys(patch).length === 0) throw new Error('Geen velden om bij te werken');

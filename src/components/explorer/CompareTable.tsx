@@ -9,6 +9,7 @@ import {
   formatLocation,
   orUnknown,
 } from './format';
+import { basisNote } from './CostValue';
 import { Value } from './Value';
 
 /** Vervangt de rij 'prijs' door ticket, reis, hotel en totaal (schatting). */
@@ -26,16 +27,16 @@ function costRows(costs: Record<string, CostEstimate | null>): Row[] {
       label: 'reis',
       value: (c) => {
         const e = get(c);
-        return e ? `${formatEuro(e.travel)} (aanname ${e.countryLabel})` : UNKNOWN;
+        return e ? `${formatEuro(e.travel)} (${basisNote(e)})` : UNKNOWN;
       },
     },
     {
       label: 'hotel',
       value: (c) => {
         const e = get(c);
-        return e
-          ? `${formatEuro(e.hotel)} (${e.nights} × ${formatEuro(e.hotelPerNight)})`
-          : UNKNOWN;
+        if (!e) return UNKNOWN;
+        if (e.basis === 'online') return `${formatEuro(0)} (online, geen hotel)`;
+        return `${formatEuro(e.hotel)} (${e.nights} × ${formatEuro(e.hotelPerNight)})`;
       },
     },
     {
