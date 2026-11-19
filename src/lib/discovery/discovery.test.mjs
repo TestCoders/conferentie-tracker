@@ -25,6 +25,8 @@ const {
 } = await import('@/lib/discovery/testing-conferences');
 const { deduplicateConferences, runDiscovery } = await import('@/lib/discovery');
 const { POST } = await import('@/app/api/discovery/run/route');
+const { extractImages, fetchConferenceImages, isPublicHostname } =
+  await import('@/lib/discovery/images');
 
 // Actual source record; no test data is written to a real database.
 const record = {
@@ -374,4 +376,68 @@ test('testing-conferences-past uses past.yml, filters to the window and tags its
   );
   assert.equal(result.errors.length, 1);
   assert.match(result.errors[0], /Record 4/);
+});
+
+test('images: takes only declared https og:image and the best icon, resolved against the page', () => {
+  const html = `<html><head>
+    <meta content="/img/og.png?a=1&amp;b=2" property="og:image">
+    <meta name='twitter:image' content='https://cdn.example.com/tw.png'>
+    <link rel="mask-icon" href="/pinned.svg">
+    <link rel="shortcut icon" href="favicon.ico">
+    <link rel="icon" sizes="32x32" href="/icon-32.png">
+    <link rel="apple-touch-icon" sizes="180x180" href="/apple.png">
+  </head><body><meta property="og:image" content="/late.png"></body></html>`;
+  assert.deepEqual(extractImages(html, 'https://conf.example.com/2027/'), {
+    image_url: 'https://conf.example.com/img/og.png?a=1&b=2',
+    icon_url: 'https://conf.example.com/apple.png',
+  });
+  // Geen tags: niets verzinnen (ook geen /favicon.ico raden).
+  assert.deepEqual(extractImages('<html><head></head></html>', 'https://conf.example.com'), {
+    image_url: null,
+    icon_url: null,
+  });
+  // http-, data- en interne URL's worden genegeerd; twitter:image is de terugval.
+  const unsafe = `<meta property="og:image" content="http://conf.example.com/og.png">
+    <meta name="twitter:image" content="https://cdn.example.com/tw.png">
+    <link rel="icon" href="data:image/png;base64,AAAA">
+    <link rel="icon" href="https://127.0.0.1/x.png">`;
+  assert.deepEqual(extractImages(unsafe, 'https://conf.example.com'), {
+    image_url: 'https://cdn.example.com/tw.png',
+    icon_url: null,
+  });
+  for (const host of ['localhost', '127.0.0.1', '10.0.0.1', '[::1]', 'metadata', 'db.internal']) {
+    assert.equal(isPublicHostname(host), false, host);
+  }
+  assert.equal(isPublicHostname('www.vuejs.amsterdam'), true);
+});
+
+test('images: fetch checks every redirect hop and reports blocked pages', async () => {
+  const seen = [];
+  globalThis.fetch = async (input, init) => {
+    const url = String(input);
+    seen.push(url);
+    assert.equal(init.redirect, 'manual');
+    if (url === 'http://conf.example.com/') {
+      return new Response(null, {
+        status: 301,
+        headers: { location: 'https://conf.example.com/' },
+      });
+    }
+    if (url === 'https://conf.example.com/') {
+      return new Response('<head><link rel="icon" href="/i.svg"></head>', {
+        headers: { 'content-type': 'text/html; charset=utf-8' },
+      });
+    }
+    if (url === 'https://evil.example.com/') {
+      return new Response(null, { status: 302, headers: { location: 'http://169.254.169.254/' } });
+    }
+    return new Response(null, { status: 403 });
+  };
+  assert.deepEqual(await fetchConferenceImages('http://conf.example.com'), {
+    image_url: null,
+    icon_url: 'https://conf.example.com/i.svg',
+  });
+  await assert.rejects(fetchConferenceImages('https://evil.example.com'), /publieke/);
+  assert.ok(!seen.some((url) => url.includes('169.254')));
+  await assert.rejects(fetchConferenceImages('https://blocked.example.com'), /HTTP 403/);
 });

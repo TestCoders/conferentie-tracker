@@ -32,6 +32,10 @@ export type Conference = {
   ticket_price_eur: number | null;
   /** Bron van de ticketprijs (https). */
   ticket_price_url: string | null;
+  /** Afbeelding (og:image) van de officiële website, alleen https; anders null. */
+  image_url: string | null;
+  /** Logo/icoon (apple-touch-icon, icon) van de officiële website, alleen https; anders null. */
+  icon_url: string | null;
   /** Laatste keer dat de AI-verrijking deze conferentie controleerde. */
   ai_checked_at: string | null;
   /** Velden die door de AI-verrijking zijn ingevuld (bijv. 'ticket_price_eur', 'country'). */
@@ -52,8 +56,10 @@ export const AI_FIELDS = [
 ] as const;
 export type AiField = (typeof AI_FIELDS)[number];
 
-/** Rij zoals de discovery-engine hem aanlevert voor een upsert (zonder DB-velden). */
-/** Zonder ticket- en AI-velden: een herimport mag die niet overschrijven. */
+/**
+ * Rij zoals de discovery-engine hem aanlevert voor een upsert (zonder DB-velden).
+ * Zonder ticket-, AI- en afbeeldingsvelden: een herimport mag die niet overschrijven.
+ */
 export type ConferenceInput = Omit<
   Conference,
   | 'id'
@@ -61,6 +67,8 @@ export type ConferenceInput = Omit<
   | 'last_checked_at'
   | 'ticket_price_eur'
   | 'ticket_price_url'
+  | 'image_url'
+  | 'icon_url'
   | 'ai_checked_at'
   | 'ai_fields'
 > & {
@@ -81,6 +89,8 @@ export type DiscoveryRunResponse = {
   inserted: number;
   updated: number;
   errors: string[];
+  /** Websites bekeken op logo/afbeelding in deze run; ontbreekt als die stap niet draaide. */
+  images?: { checked: number; found: number };
 };
 
 /** Velden die via PATCH /api/admin/conferences/:id aangepast mogen worden. */
@@ -271,4 +281,4 @@ export type ExperienceConference = Pick<
 
 /** Kolommen die we teruggeven als Conference (geen created_at/updated_at). */
 export const CONFERENCE_COLUMNS =
-  'id,name,official_url,canonical_url,source_name,source_url,start_date,end_date,city,country,category,cfp_url,cfp_deadline,price_text,online_only,ticket_price_eur,ticket_price_url,ai_checked_at,ai_fields,status,last_checked_at';
+  'id,name,official_url,canonical_url,source_name,source_url,start_date,end_date,city,country,category,cfp_url,cfp_deadline,price_text,online_only,ticket_price_eur,ticket_price_url,ai_checked_at,ai_fields,image_url,icon_url,status,last_checked_at';

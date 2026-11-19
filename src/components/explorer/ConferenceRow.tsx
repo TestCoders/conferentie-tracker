@@ -13,6 +13,7 @@ import {
 import { PastBadge } from './PastBadge';
 import { CATEGORY_STYLES } from './category-styles';
 import { CostValue } from './CostValue';
+import { ConferenceLogo } from './ConferenceImages';
 import { Value } from './Value';
 
 type Props = {
@@ -52,35 +53,38 @@ export function ConferenceRow({
         <span className="text-ink-muted font-mono text-[10px]">{year}</span>
       </div>
 
-      <div className="min-w-0">
-        <a
-          className="font-display hover:text-signal block truncate font-semibold hover:underline"
-          href={c.official_url}
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          {c.name}
-        </a>
-        <p className="text-ink-soft truncate text-sm">
-          <span className="sr-only">Datum: </span>
-          {isPast(c) ? <PastBadge /> : null}
-          {formatDateRange(c)} · <Value text={formatLocation(c)} />
-        </p>
-        <p className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 sm:hidden">
-          <span
-            className={`rounded px-2 py-0.5 font-mono text-[11px] font-semibold ${CATEGORY_STYLES[c.category]}`}
+      <div className="flex min-w-0 items-center gap-3">
+        <ConferenceLogo conference={c} size="sm" fallback />
+        <div className="min-w-0">
+          <a
+            className="font-display hover:text-signal block truncate font-semibold hover:underline"
+            href={c.official_url}
+            target="_blank"
+            rel="noopener noreferrer"
           >
-            {CATEGORY_LABELS[c.category]}
-          </span>
-          <span className="text-ink-muted font-mono text-xs">
-            cfp: <Value text={formatDate(c.cfp_deadline)} />
-          </span>
-          {cost !== undefined ? (
-            <span className="text-ink-muted font-mono text-xs">
-              kosten: <CostValue estimate={cost} />
+            {c.name}
+          </a>
+          <p className="text-ink-soft truncate text-sm">
+            <span className="sr-only">Datum: </span>
+            {isPast(c) ? <PastBadge /> : null}
+            {formatDateRange(c)} · <Value text={formatLocation(c)} />
+          </p>
+          <p className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 sm:hidden">
+            <span
+              className={`rounded px-2 py-0.5 font-mono text-[11px] font-semibold ${CATEGORY_STYLES[c.category]}`}
+            >
+              {CATEGORY_LABELS[c.category]}
             </span>
-          ) : null}
-        </p>
+            <span className="text-ink-muted font-mono text-xs">
+              cfp: <Value text={formatDate(c.cfp_deadline)} />
+            </span>
+            {cost !== undefined ? (
+              <span className="text-ink-muted font-mono text-xs">
+                kosten: <CostValue estimate={cost} />
+              </span>
+            ) : null}
+          </p>
+        </div>
       </div>
 
       <div className="hidden sm:block">

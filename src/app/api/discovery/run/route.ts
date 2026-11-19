@@ -1,5 +1,7 @@
 // Eigenaar: B. POST /api/discovery/run — beveiligd met ADMIN_TOKEN.
 import { runDiscovery } from '@/lib/discovery';
+import { refreshConferenceImages } from '@/lib/discovery/images';
+import { getSupabaseAdmin } from '@/lib/supabase-admin';
 import { jsonError, requireAdmin } from '@/lib/http';
 import type { DiscoveryRunResponse, DiscoverySource } from '@/lib/types';
 
@@ -38,6 +40,12 @@ export async function POST(request: Request) {
   }
   try {
     const result = await runDiscovery(source as DiscoverySource);
+    // Best effort: een mislukte afbeeldingenstap mag de import zelf nooit laten falen.
+    try {
+      result.images = await refreshConferenceImages(getSupabaseAdmin());
+    } catch {
+      // images blijft weg; de volgende run probeert het opnieuw.
+    }
     return Response.json(result satisfies DiscoveryRunResponse);
   } catch (error) {
     return jsonError(error instanceof Error ? error.message : 'Discovery mislukt', 500);
