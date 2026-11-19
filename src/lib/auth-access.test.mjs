@@ -168,3 +168,69 @@ test('knowing a photo edit token does not allow uploading to another user’s ex
   });
   assert.equal((await postPhoto(req, { params: Promise.resolve({ id }) })).status, 403);
 });
+
+test('community reads require an active account; users and admins receive uncached data', async () => {
+  const routes = await Promise.all([
+    import('../app/api/reviews/route.ts'),
+    import('../app/api/attendances/route.ts'),
+    import('../app/api/attendances/summary/route.ts'),
+    import('../app/api/experiences/route.ts'),
+    import('../app/api/experiences/conferences/route.ts'),
+    import('../app/api/experience-photos/[id]/route.ts'),
+  ]);
+  const id = '44444444-4444-4444-4444-444444444444';
+  let calls = 0;
+  let disabled = false;
+  globalThis.fetch = async (input, init) => {
+    calls++;
+    const req = new Request(input, init);
+    const path = new URL(req.url).pathname;
+    if (path.endsWith('/app_users'))
+      return Response.json({
+        id,
+        display_name: user.name,
+        disabled_at: disabled ? new Date().toISOString() : null,
+      });
+    if (path.endsWith('/experience_photos'))
+      return Response.json({ storage_path: `${id}/photo.jpg` });
+    if (path.startsWith('/storage/'))
+      return new Response(new Uint8Array([0xff, 0xd8, 0xff]), {
+        headers: { 'content-type': 'image/jpeg' },
+      });
+    return Response.json([]);
+  };
+  for (const session of [
+    null,
+    { user: { ...user, authorizedUntil: 0 } },
+    { user: { ...user, tenantId: 'wrong' } },
+  ]) {
+    globalThis.testEntraSession = session;
+    for (const route of routes) {
+      const response = await route.GET(
+        new Request(`https://tracker.example/api/private?conferenceId=${id}`),
+        { params: Promise.resolve({ id }) },
+      );
+      assert.equal(response.status, session?.user.tenantId === 'wrong' ? 403 : 401);
+      assert.equal(calls, 0, 'unauthenticated reads must not reach the database or storage');
+    }
+  }
+  for (const isAdmin of [false, true]) {
+    globalThis.testEntraSession = { user: { ...user, isAdmin } };
+    for (const route of routes) {
+      const response = await route.GET(
+        new Request(`https://tracker.example/api/private?conferenceId=${id}`),
+        { params: Promise.resolve({ id }) },
+      );
+      assert.equal(response.status, 200);
+      assert.equal(response.headers.get('cache-control'), 'private, no-store');
+    }
+  }
+  disabled = true;
+  for (const route of routes) {
+    const response = await route.GET(
+      new Request(`https://tracker.example/api/private?conferenceId=${id}`),
+      { params: Promise.resolve({ id }) },
+    );
+    assert.equal(response.status, 403);
+  }
+});

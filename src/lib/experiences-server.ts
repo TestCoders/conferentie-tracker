@@ -31,13 +31,14 @@ export function tokenMatches(token: string, expectedHash: string): boolean {
   return a.length === b.length && timingSafeEqual(a, b);
 }
 
-export function photoUrl(db: SupabaseClient, path: string): string {
-  return db.storage.from(PHOTO_BUCKET).getPublicUrl(path).data.publicUrl;
+export function photoUrl(id: string): string {
+  return `/api/experience-photos/${encodeURIComponent(id)}`;
 }
 
-function toPhoto(db: SupabaseClient, row: PhotoRow): ExperiencePhoto {
-  const { storage_path, ...rest } = row;
-  return { ...rest, url: photoUrl(db, storage_path) };
+function toPhoto(row: PhotoRow): ExperiencePhoto {
+  const { id, experience_id, caption, width, height, created_at } = row;
+  const rest = { id, experience_id, caption, width, height, created_at };
+  return { ...rest, url: photoUrl(row.id) };
 }
 
 /** Ervaringen ophalen met hun foto's (nieuwste eerst). */
@@ -70,7 +71,7 @@ export async function loadExperiences(
   const byExperience = new Map<string, ExperiencePhoto[]>();
   for (const p of (photos.data ?? []) as PhotoRow[]) {
     const list = byExperience.get(p.experience_id) ?? [];
-    list.push(toPhoto(db, p));
+    list.push(toPhoto(p));
     byExperience.set(p.experience_id, list);
   }
   return rows.map((r) => ({ ...r, photos: byExperience.get(r.id) ?? [] }));

@@ -1,14 +1,15 @@
+import { requireUser } from '@/lib/auth-access';
 // GET — tellingen per conferentie (interesse, bijgewoond, reviews, gemiddelde) voor lijst en vergelijking.
-import { connection } from 'next/server';
 import { jsonError } from '@/lib/http';
 import { getSupabaseAdmin } from '@/lib/supabase-admin';
 import type { CommunityStats, CommunitySummaryResponse } from '@/lib/types';
 
 const ROW_LIMIT = 10000;
 
-export async function GET() {
+export async function GET(request: Request) {
+  const access = await requireUser(request);
+  if (access.response) return access.response;
   // Altijd per request: tellingen veranderen zodra iemand zich aanmeldt.
-  await connection();
   try {
     const db = getSupabaseAdmin();
     const [people, reviews] = await Promise.all([
@@ -35,7 +36,9 @@ export async function GET() {
       if (s.reviews > 0) s.averageRating = Math.round((sums[id] / s.reviews) * 10) / 10;
     }
 
-    return Response.json({ items } satisfies CommunitySummaryResponse);
+    return Response.json({ items } satisfies CommunitySummaryResponse, {
+      headers: { 'Cache-Control': 'private, no-store' },
+    });
   } catch (err) {
     return jsonError(err instanceof Error ? err.message : 'Unknown error', 500);
   }

@@ -1,4 +1,5 @@
 'use client';
+import { ContributionGate } from '@/components/auth/ContributionGate';
 // Ervaringen: verslagen en foto's van conferenties delen en bekijken (roadmap #3).
 // URL-parameters: ?id=<ervaring> (deelbaar detail), ?conference=<id> (filter), ?share=1 (formulier).
 import { useCallback, useEffect, useMemo, useState } from 'react';
@@ -26,6 +27,14 @@ async function getJson<T>(url: string): Promise<T> {
 }
 
 export function ExperiencesPage() {
+  return (
+    <ContributionGate message="Log in met Microsoft om reviews, deelnemers en ervaringen te bekijken.">
+      <ExperiencesPageContent />
+    </ContributionGate>
+  );
+}
+
+function ExperiencesPageContent() {
   const router = useRouter();
   const pathname = usePathname();
   const params = useSearchParams();

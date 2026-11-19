@@ -1,5 +1,7 @@
 'use client';
 // Eigenaar: C. Publiek overzicht: zoeken, filteren, sorteren, lijst/kaarten/agenda en 2 vergelijken.
+import Link from 'next/link';
+import { useSession } from 'next-auth/react';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { assumptionMap, estimateCosts, ticketFor, type CostEstimate } from '@/lib/costs';
 import {
@@ -52,6 +54,8 @@ const FIELD =
 const FIELD_LABEL = 'flex flex-col gap-1 font-mono text-xs text-ink-muted';
 
 export function Explorer() {
+  const { status: authStatus } = useSession();
+  const signedIn = authStatus === 'authenticated';
   const [items, setItems] = useState<Conference[] | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [query, setQuery] = useState('');
@@ -94,6 +98,7 @@ export function Explorer() {
 
   useEffect(() => {
     const controller = new AbortController();
+    if (!signedIn) return;
     fetch('/api/attendances/summary', { signal: controller.signal })
       .then(async (res) => {
         if (!res.ok) throw new Error(`HTTP ${res.status}`);
@@ -103,7 +108,7 @@ export function Explorer() {
         // Community-tellingen zijn optioneel; de lijst blokkeert er niet op.
       });
     return () => controller.abort();
-  }, [statsVersion]);
+  }, [statsVersion, signedIn]);
 
   const refreshStats = useCallback(() => setStatsVersion((n) => n + 1), []);
 
@@ -121,9 +126,13 @@ export function Explorer() {
     const panelId = `community-${c.id}`;
     const expanded = expandedId === c.id;
     return {
-      badge: (
+      badge: !signedIn ? (
+        <Link href="/login" className="text-signal text-xs hover:underline">
+          Log in voor reviews en deelnemers
+        </Link>
+      ) : (
         <CommunityBadge
-          stats={stats?.[c.id]}
+          stats={signedIn ? stats?.[c.id] : undefined}
           expanded={expanded}
           controls={panelId}
           onToggle={() => setExpandedId(expanded ? null : c.id)}
@@ -284,7 +293,7 @@ export function Explorer() {
         <CompareTable
           conferences={[selected[0], selected[1]]}
           onClear={() => setSelectedIds([])}
-          stats={stats}
+          stats={signedIn ? stats : undefined}
           costs={costs}
         />
       ) : null}

@@ -111,7 +111,7 @@ export async function POST(request: Request, ctx: RouteContext<'/api/experiences
     return Response.json(
       {
         ...(data as Omit<ExperiencePhoto, 'url'>),
-        url: photoUrl(db, path),
+        url: photoUrl((data as Omit<ExperiencePhoto, 'url'>).id),
       } satisfies ExperiencePhoto,
       { status: 201 },
     );

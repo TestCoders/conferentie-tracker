@@ -11,6 +11,8 @@ const COMMENT_MAX = 1000;
 const LIST_LIMIT = 100;
 
 export async function GET(request: Request) {
+  const access = await requireUser(request);
+  if (access.response) return access.response;
   const conferenceId = new URL(request.url).searchParams.get('conferenceId') ?? '';
   if (!UUID_RE.test(conferenceId)) return jsonError('conferenceId (UUID) is verplicht', 400);
 
@@ -34,11 +36,14 @@ export async function GET(request: Request) {
     const averageRating =
       count === 0 ? null : Math.round((values.reduce((a, b) => a + b, 0) / count) * 10) / 10;
 
-    return Response.json({
-      items: (list.data ?? []) as Review[],
-      averageRating,
-      count,
-    } satisfies ReviewsResponse);
+    return Response.json(
+      {
+        items: (list.data ?? []) as Review[],
+        averageRating,
+        count,
+      } satisfies ReviewsResponse,
+      { headers: { 'Cache-Control': 'private, no-store' } },
+    );
   } catch (err) {
     return jsonError(err instanceof Error ? err.message : 'Unknown error', 500);
   }

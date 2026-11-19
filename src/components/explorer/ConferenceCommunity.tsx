@@ -33,7 +33,15 @@ type Props = {
   stacked?: boolean;
 };
 
-export function ConferenceCommunity({ conference: c, onChanged, stacked = false }: Props) {
+export function ConferenceCommunity(props: Props) {
+  return (
+    <ContributionGate message="Log in met Microsoft om reviews, deelnemers en ervaringen te bekijken.">
+      <ConferenceCommunityContent {...props} />
+    </ContributionGate>
+  );
+}
+
+function ConferenceCommunityContent({ conference: c, onChanged, stacked = false }: Props) {
   const today = new Date().toISOString().slice(0, 10);
   const canAttend = c.start_date <= today;
 
